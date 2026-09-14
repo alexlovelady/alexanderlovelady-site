@@ -20,7 +20,7 @@
   <% site.businesses.forEach(function(biz, i) { %>
   <section id="<%= biz.slug %>" class="section <%= i % 2 === 0 ? 'section--light' : 'section--dark section--line-top' %>">
     <div class="container">
-      <div class="work-card <%= i % 2 === 0 ? '' : 'card--dark' %>" style="background:transparent; border:none;">
+      <div class="work-card <%= i % 2 === 0 ? '' : 'card--dark' %>" style="background:transparent; border:none; display:block;">
         <div class="split <%= i % 2 === 1 ? 'split--reverse' : '' %>">
           <div class="split__media">
             <div class="logo-badge" style="margin-bottom:24px;"><img src="<%= biz.logo %>" alt="<%= biz.name %> logo" style="height:28px;"></div>
