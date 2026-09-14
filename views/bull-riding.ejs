@@ -65,6 +65,27 @@
 
   <section class="section section--dark section--line-top">
     <div class="container">
+      <div class="eyebrow">Upcoming schedule</div>
+      <h2 class="h2" style="margin-bottom:36px;">Where to catch the next ride.</h2>
+      <% if (upcomingEvents.length) { %>
+      <div class="schedule-list">
+        <% upcomingEvents.forEach(function(ev) { %>
+        <div class="schedule-item">
+          <div class="schedule-item__date"><%= ev.label %></div>
+          <div class="schedule-item__event"><%= ev.event %></div>
+          <div class="schedule-item__location"><%= ev.location %></div>
+          <div class="schedule-item__status schedule-item__status--<%= ev.status %>"><%= ev.status %></div>
+        </div>
+        <% }) %>
+      </div>
+      <% } else { %>
+      <div class="schedule-empty">2027 schedule being finalized — check back soon, or follow along on <a href="<%= site.social.tiktokUrl %>" target="_blank" rel="noopener" style="color:var(--copper-light); text-decoration:underline;">TikTok</a> and <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" style="color:var(--copper-light); text-decoration:underline;">YouTube</a> for the latest.</div>
+      <% } %>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container">
       <div class="eyebrow">From the arena</div>
       <h2 class="h2" style="margin-bottom:36px;">Photos</h2>
       <div class="gallery">

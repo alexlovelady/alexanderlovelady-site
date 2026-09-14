@@ -310,6 +310,23 @@ button { font-family: inherit; }
 }
 .timeline__year { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--copper-light); font-weight: 600; margin-bottom: 6px; }
 
+/* ---- Upcoming schedule ---- */
+.schedule-list { border-top: 1px solid var(--line-on-dark); }
+.schedule-item {
+  display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 20px;
+  padding: 18px 0; border-bottom: 1px solid var(--line-on-dark);
+}
+.schedule-item__date { font-family: var(--font-display); font-size: 1.05rem; color: var(--copper-light); min-width: 190px; flex-shrink: 0; }
+.schedule-item__event { font-weight: 600; flex: 1; min-width: 200px; }
+.schedule-item__location { color: var(--paper-muted); font-size: 13.5px; }
+.schedule-item__status {
+  font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 30px; border: 1px solid var(--line-on-dark); color: var(--paper-muted);
+  white-space: nowrap;
+}
+.schedule-item__status--confirmed { border-color: rgba(90,145,83,0.4); color: #8fc088; }
+.schedule-empty { padding: 22px 0; color: var(--paper-muted); border-top: 1px solid var(--line-on-dark); border-bottom: 1px solid var(--line-on-dark); }
+
 /* ---- Sponsorship tiers ---- */
 .tier {
   border: 1px solid var(--line-on-light);

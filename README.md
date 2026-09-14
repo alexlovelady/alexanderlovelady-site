@@ -67,6 +67,15 @@ Drop new images into `public/images/bull-riding/` and add them to the
 arena" gallery on `/bull-riding` both pull from `site-data.js`, so no template
 edits are needed for new photos.
 
+## Updating the upcoming schedule
+
+Add, edit, or remove events in the `upcomingEvents` array in
+`lib/site-data.js` — each one is `{ date, label, event, location, status, url }`
+(`date` must be `YYYY-MM-DD` so it sorts correctly; `status` is `"confirmed"`
+or `"tentative"`). The Bull Riding page automatically drops any event once
+its date has passed, sorts what's left soonest-first, and shows a friendly
+placeholder when the list is empty — no template edits needed.
+
 ## Adding a featured ride video
 
 Set `featuredVideoId` in `lib/site-data.js` to a YouTube video ID (the part

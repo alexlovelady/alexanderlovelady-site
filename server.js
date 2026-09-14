@@ -5,7 +5,7 @@ const compression = require("compression");
 const helmet = require("helmet");
 
 const apiRoutes = require("./routes/api");
-const { site, ridingYears } = require("./lib/site-data");
+const { site, ridingYears, upcomingEventsSorted } = require("./lib/site-data");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -28,6 +28,7 @@ app.use((req, res, next) => {
   res.locals.site = site;
   res.locals.currentYear = new Date().getFullYear();
   res.locals.ridingYears = ridingYears();
+  res.locals.upcomingEvents = upcomingEventsSorted();
   res.locals.siteUrl = SITE_URL;
   res.locals.canonical = `${SITE_URL}${req.path === "/" ? "" : req.path}`;
   res.locals.currentPath = req.path;
