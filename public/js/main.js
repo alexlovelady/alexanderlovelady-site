@@ -85,7 +85,7 @@ function onScrollIntoView(elements, onEnter) {
 // Count up the plain numeric stats (years riding, products shipped, etc.)
 // the moment each one scrolls into view.
 (function () {
-  const nodes = document.querySelectorAll(".stat__num");
+  const nodes = document.querySelectorAll(".stat__num:not([data-no-count])");
   if (!nodes.length) return;
 
   function parse(text) {
