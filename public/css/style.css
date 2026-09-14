@@ -7,19 +7,19 @@
   --charcoal: #17140f;
   --charcoal-2: #1f1b15;
   --warm-black: #0d0b08;
-  --cream: #f3ecdf;
-  --cream-2: #ece2cd;
-  --cream-line: rgba(23, 20, 15, 0.12);
+  --cream: #332c1e;
+  --cream-2: #3c331f;
+  --cream-line: rgba(243, 236, 223, 0.12);
   --copper: #b5652f;
   --copper-light: #d99457;
   --copper-dark: #8a4a1f;
-  --ink: #17140f;
-  --ink-muted: rgba(23, 20, 15, 0.66);
+  --ink: #f3ecdf;
+  --ink-muted: rgba(243, 236, 223, 0.7);
   --paper: #f3ecdf;
   --paper-muted: rgba(243, 236, 223, 0.7);
   --paper-faint: rgba(243, 236, 223, 0.45);
   --line-on-dark: rgba(243, 236, 223, 0.14);
-  --line-on-light: rgba(23, 20, 15, 0.14);
+  --line-on-light: rgba(243, 236, 223, 0.14);
   --shadow: 0 20px 60px rgba(13, 11, 8, 0.35);
   --radius: 2px;
   --container: 1180px;
@@ -31,7 +31,7 @@
 html { scroll-behavior: smooth; }
 body {
   margin: 0;
-  background: var(--paper);
+  background: var(--cream);
   color: var(--ink);
   font-family: var(--font-body);
   font-size: 16px;
@@ -57,7 +57,7 @@ button { font-family: inherit; }
 .section--dark { background: var(--charcoal); color: var(--paper); }
 .section--dark h1, .section--dark h2, .section--dark h3 { color: var(--paper); }
 .section--dark .eyebrow { color: var(--copper-light); }
-.section--light { background: var(--paper); color: var(--ink); }
+.section--light { background: var(--cream); color: var(--ink); }
 .section--line-top { border-top: 1px solid var(--line-on-light); }
 .section--dark.section--line-top { border-top: 1px solid var(--line-on-dark); }
 
@@ -70,7 +70,7 @@ button { font-family: inherit; }
   font-weight: 600;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--copper-dark);
+  color: var(--copper-light);
   margin-bottom: 18px;
 }
 .eyebrow::before {
@@ -309,12 +309,11 @@ button { font-family: inherit; }
   border-radius: 50%; background: var(--copper); box-shadow: 0 0 0 4px rgba(181,101,47,0.18);
 }
 .timeline__year { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--copper-light); font-weight: 600; margin-bottom: 6px; }
-.section--light .timeline__year { color: var(--copper-dark); }
 
 /* ---- Sponsorship tiers ---- */
 .tier {
   border: 1px solid var(--line-on-light);
-  background: var(--paper);
+  background: var(--cream);
   padding: 34px 28px;
   display: flex;
   flex-direction: column;
@@ -326,7 +325,7 @@ button { font-family: inherit; }
   background: var(--copper); color: #fff; font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em; text-transform: uppercase; padding: 5px 12px; border-radius: 30px;
 }
-.tier__name { font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--copper-dark); }
+.tier__name { font-size: 12.5px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 700; color: var(--copper-light); }
 .tier__price { font-family: var(--font-display); font-size: 2.4rem; margin: 10px 0 4px; }
 .tier__fit { font-size: 13px; color: var(--ink-muted); margin-bottom: 22px; }
 .tier__list { flex: 1; }
@@ -348,14 +347,14 @@ button { font-family: inherit; }
 .form-row { margin-bottom: 20px; }
 .form-row label { display: block; font-size: 13px; font-weight: 600; letter-spacing: 0.03em; margin-bottom: 8px; }
 .form-row input, .form-row textarea, .form-row select {
-  width: 100%; padding: 13px 15px; border: 1px solid var(--line-on-light); background: var(--paper);
+  width: 100%; padding: 13px 15px; border: 1px solid var(--line-on-light); background: var(--cream-2);
   font-family: inherit; font-size: 15px; border-radius: var(--radius); color: var(--ink);
 }
 .form-row input:focus, .form-row textarea:focus, .form-row select:focus { outline: none; border-color: var(--copper); }
 .form-row textarea { resize: vertical; min-height: 130px; }
 .form-toggle { display: flex; gap: 10px; margin-bottom: 28px; flex-wrap: wrap; }
 .form-toggle button {
-  flex: 1; min-width: 160px; padding: 16px; border: 1px solid var(--line-on-light); background: var(--paper);
+  flex: 1; min-width: 160px; padding: 16px; border: 1px solid var(--line-on-light); background: var(--cream);
   cursor: pointer; font-weight: 600; font-size: 14.5px; text-align: left; border-radius: var(--radius);
 }
 .form-toggle button.is-active { border-color: var(--copper); background: var(--cream-2); }
