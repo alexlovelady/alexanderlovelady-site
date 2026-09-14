@@ -13,7 +13,45 @@
   }));
 })();
 
-// Live social stats widget
+// Shared count-up animation helper: eases a number from 0 to `target`,
+// re-running `render(currentValue)` on every frame so callers can format
+// (add a suffix, abbreviate to "1.2K", etc.) however they need.
+function animateCountUp(target, render, duration) {
+  if (duration === undefined) duration = 1200;
+  if (!target || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    render(target);
+    return;
+  }
+  const start = performance.now();
+  function frame(now) {
+    const progress = Math.min((now - start) / duration, 1);
+    const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic
+    render(Math.round(target * eased));
+    if (progress < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// Fires `onEnter(el)` once, the first time each observed element scrolls into view.
+function onScrollIntoView(elements, onEnter) {
+  const els = Array.prototype.filter.call(elements, Boolean);
+  if (!els.length) return;
+  if (!("IntersectionObserver" in window)) {
+    els.forEach(onEnter);
+    return;
+  }
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      observer.unobserve(entry.target);
+      onEnter(entry.target);
+    });
+  }, { threshold: 0.4, rootMargin: "0px 0px -10% 0px" });
+  els.forEach((el) => observer.observe(el));
+}
+
+// Live social stats widget — counts up to the real number once it's fetched
+// and the element has scrolled into view (whichever happens later).
 (function () {
   const nodes = document.querySelectorAll("[data-social-count]");
   if (!nodes.length) return;
@@ -25,19 +63,50 @@
     return String(n);
   }
 
-  fetch("/api/social-stats")
+  const dataReady = fetch("/api/social-stats")
     .then((r) => r.json())
-    .then((data) => {
-      document.querySelectorAll('[data-social-count="youtube"]').forEach((el) => {
-        el.textContent = formatCount(data.youtube.count);
-      });
-      document.querySelectorAll('[data-social-count="tiktok"]').forEach((el) => {
-        el.textContent = formatCount(data.tiktok.count);
-      });
-    })
-    .catch(() => {
-      nodes.forEach((el) => { el.textContent = "—"; });
+    .catch(() => null);
+
+  function reveal(el) {
+    const platform = el.dataset.socialCount;
+    dataReady.then((data) => {
+      const count = data ? data[platform] && data[platform].count : null;
+      if (count == null) {
+        el.textContent = "—";
+        return;
+      }
+      animateCountUp(count, (v) => { el.textContent = formatCount(v); });
     });
+  }
+
+  onScrollIntoView(nodes, reveal);
+})();
+
+// Count up the plain numeric stats (years riding, products shipped, etc.)
+// the moment each one scrolls into view.
+(function () {
+  const nodes = document.querySelectorAll(".stat__num");
+  if (!nodes.length) return;
+
+  function parse(text) {
+    const match = text.trim().match(/^(\D*)(\d[\d,]*)(\D*)$/);
+    if (!match) return null;
+    const target = parseInt(match[2].replace(/,/g, ""), 10);
+    if (Number.isNaN(target)) return null;
+    return { prefix: match[1], target, suffix: match[3] };
+  }
+
+  const parsed = new Map();
+  nodes.forEach((el) => {
+    const p = parse(el.textContent);
+    if (p) parsed.set(el, p);
+  });
+  if (!parsed.size) return;
+
+  onScrollIntoView([...parsed.keys()], (el) => {
+    const { prefix, target, suffix } = parsed.get(el);
+    animateCountUp(target, (v) => { el.textContent = prefix + v + suffix; });
+  });
 })();
 
 // Contact form
