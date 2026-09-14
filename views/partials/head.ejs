@@ -1,0 +1,35 @@
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title><%= meta.title %></title>
+<meta name="description" content="<%= meta.description %>">
+<link rel="canonical" href="<%= canonical %>">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Alexander Lovelady">
+<meta property="og:title" content="<%= meta.title %>">
+<meta property="og:description" content="<%= meta.description %>">
+<meta property="og:url" content="<%= canonical %>">
+<meta property="og:image" content="<%= siteUrl %><%= meta.ogImage %>">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="<%= meta.title %>">
+<meta name="twitter:description" content="<%= meta.description %>">
+<meta name="twitter:image" content="<%= siteUrl %><%= meta.ogImage %>">
+
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+
+<script type="application/ld+json">
+<%- JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": site.name,
+  "url": siteUrl,
+  "jobTitle": ["Automation Developer", "Founder", "Competitive Bull Rider"],
+  "address": { "@type": "PostalAddress", "addressLocality": site.location },
+  "email": "mailto:" + site.contact.email,
+  "sameAs": [site.social.tiktokUrl, site.social.youtubeUrl]
+}) %>
+</script>

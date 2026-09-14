@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="hero__media">
+      <img src="<%= site.images.homeHero %>" alt="Alexander Lovelady riding a bull at True Grit Rodeo">
+    </div>
+    <div class="hero__scrim"></div>
+    <div class="container hero__content">
+      <div class="hero__kicker">Elizabeth City, North Carolina</div>
+      <h1 class="h1"><%= site.tagline %></h1>
+      <p class="hero__sub"><%= site.subtitle %></p>
+      <div class="btn-row">
+        <a href="/work" class="btn btn-primary">Explore My Work</a>
+        <a href="/sponsors" class="btn btn-outline-dark">Sponsor the 2027 Season</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="stats">
+        <div class="stat">
+          <div class="stat__num"><%= ridingYears %> yrs</div>
+          <div class="stat__label">Bull riding, since 2017</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num"><%= site.navyYears %> yrs</div>
+          <div class="stat__label">U.S. Navy veteran</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">2</div>
+          <div class="stat__label">SaaS products, live</div>
+        </div>
+        <div class="stat">
+          <div class="stat__num">2027</div>
+          <div class="stat__label">Season now building</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="eyebrow">What I build</div>
+      <div class="split" style="align-items:flex-start; margin-bottom:48px;">
+        <div>
+          <h2 class="h2">Two SaaS products, shipped and live.</h2>
+          <p class="lede">Under AMP Titans Automations, I design and build software that replaces spreadsheets and group texts with something small businesses actually want to use.</p>
+        </div>
+        <div>
+          <a href="/work" class="btn btn-outline-light">See the full case studies →</a>
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <% site.businesses.forEach(function(biz) { %>
+        <a href="/work#<%= biz.slug %>" class="card" style="text-decoration:none; display:block;">
+          <div class="card__corner"></div>
+          <div class="logo-badge" style="margin-bottom:20px;"><img src="<%= biz.logo %>" alt="<%= biz.name %> logo"></div>
+          <h3 class="h3"><%= biz.name %></h3>
+          <p class="small" style="margin-top:8px;"><%= biz.oneLiner %></p>
+        </a>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="split split--reverse">
+        <div class="split__media">
+          <img src="/images/bull-riding/gallery-04-higgins-chute.jpg" alt="Alexander Lovelady bull riding" style="border-radius:2px;">
+        </div>
+        <div>
+          <div class="eyebrow">The 2027 season</div>
+          <h2 class="h2">Nine years in, and just getting started.</h2>
+          <p class="lede">Last season is starting to show it: a qualified ride, a runner-up finish, and a clear sense of what a full season could look like. I'm building the 2027 season on that momentum.</p>
+          <div class="btn-row" style="margin-top:28px;">
+            <a href="/bull-riding" class="btn btn-outline-dark">The full story</a>
+            <a href="/sponsors" class="btn btn-primary">2027 sponsorship</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="eyebrow">Follow the season</div>
+      <div class="split" style="align-items:center;">
+        <div>
+          <h2 class="h2">Ride footage, prep, and behind-the-scenes — as it happens.</h2>
+          <p class="lede">I document the season honestly: practice, preparation, results, and everything in between. Live counts pulled straight from TikTok and YouTube.</p>
+          <div class="social-stats" style="margin-top:28px; max-width:420px;">
+            <a href="<%= site.social.tiktokUrl %>" target="_blank" rel="noopener" class="social-stat" style="border-color:var(--line-on-light);">
+              <span class="social-stat__icon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6c0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64c0 3.33 2.76 5.7 5.69 5.7c3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48Z"/></svg>
+              </span>
+              <span>
+                <span class="social-stat__count" data-social-count="tiktok">—</span>
+                <span class="social-stat__label" style="color:var(--ink-muted); display:block;">TikTok followers</span>
+              </span>
+            </a>
+            <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" class="social-stat" style="border-color:var(--line-on-light);">
+              <span class="social-stat__icon">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.56A3.02 3.02 0 0 0 .5 6.2 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.8 3.02 3.02 0 0 0 2.12 2.14C4.5 20.5 12 20.5 12 20.5s7.5 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.4 3.6-6.4 3.6Z"/></svg>
+              </span>
+              <span>
+                <span class="social-stat__count" data-social-count="youtube">—</span>
+                <span class="social-stat__label" style="color:var(--ink-muted); display:block;">YouTube subscribers</span>
+              </span>
+            </a>
+          </div>
+        </div>
+        <div>
+          <% if (site.featuredVideoId) { %>
+          <div class="video-embed">
+            <iframe src="https://www.youtube.com/embed/<%= site.featuredVideoId %>" title="Latest ride video" allowfullscreen loading="lazy"></iframe>
+          </div>
+          <% } else { %>
+          <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" class="work-card__media" style="display:block; min-height:280px; position:relative;">
+            <img src="/images/bull-riding/gallery-08-golden-hour.jpg" alt="Watch the latest ride on YouTube">
+            <span style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center;">
+              <span style="width:64px; height:64px; border-radius:50%; background:rgba(13,11,8,0.7); display:flex; align-items:center; justify-content:center;">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="#f3ecdf"><path d="M8 5v14l11-7z"/></svg>
+              </span>
+            </span>
+          </a>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="split">
+        <div>
+          <div class="eyebrow">The short version</div>
+          <h2 class="h2">Nine years in the Navy. Nine years in the arena. Three businesses in between.</h2>
+          <p class="lede">I spent nine years in the U.S. Navy before turning that discipline toward building software and chasing a qualified bull ride — often in the same week. Today that's AMP Titans Automations, two live SaaS products, and a rodeo season I'm building one ride at a time.</p>
+          <a href="/about" class="btn btn-outline-dark" style="margin-top:20px;">Read the full story →</a>
+        </div>
+        <div class="card card--dark">
+          <div class="card__corner"></div>
+          <h3 class="h3" style="margin-bottom:16px;">Let's talk</h3>
+          <p class="small" style="color:var(--paper-muted); margin-bottom:22px;">Whether you're looking to sponsor the 2027 season or just want to say hello, I'd like to hear from you.</p>
+          <a href="/contact" class="btn btn-primary" style="width:100%; justify-content:center;">Get in touch</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>

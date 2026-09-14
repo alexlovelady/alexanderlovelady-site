@@ -1,0 +1,22 @@
+{
+  "name": "alexanderlovelady-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Personal brand site for Alexander Lovelady — automation developer, founder, Navy veteran, competitive bull rider.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "compression": "^1.7.4",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "resend": "^4.0.1"
+  }
+}

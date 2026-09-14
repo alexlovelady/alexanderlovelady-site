@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero hero--page">
+    <div class="hero__media"><img src="<%= site.images.bullRidingHero %>" alt="Alexander Lovelady bull riding"></div>
+    <div class="hero__scrim"></div>
+    <div class="container hero__content">
+      <div class="hero__kicker"><%= site.region %></div>
+      <h1 class="h1">Nine years of persistence. One breakthrough ride.</h1>
+      <p class="hero__sub">At my most recent rodeo I earned my first qualified ride and finished second. That result proved the work is moving in the right direction — and gave me a foundation to build the 2027 season on.</p>
+      <div class="btn-row">
+        <a href="/sponsors" class="btn btn-primary">2027 Sponsorship</a>
+        <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" class="btn btn-outline-dark">Watch on YouTube</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="stats">
+        <div class="stat"><div class="stat__num"><%= ridingYears %></div><div class="stat__label">Years riding, since 2017</div></div>
+        <div class="stat"><div class="stat__num">SEBRA</div><div class="stat__label">+ local jackpots</div></div>
+        <div class="stat"><div class="stat__num">NC</div><div class="stat__label">Regional circuit</div></div>
+        <div class="stat"><div class="stat__num">2027</div><div class="stat__label">Season now building</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="eyebrow">The journey</div>
+      <h2 class="h2" style="margin-bottom:48px;">Nine years, one chute at a time.</h2>
+      <div class="timeline">
+        <div class="timeline__item">
+          <div class="timeline__year">2017</div>
+          <h3 class="h3">Started bull riding</h3>
+          <p>Got on my first bull and started the long process of learning the sport — entering local jackpots and SEBRA events around northeastern North Carolina.</p>
+        </div>
+        <div class="timeline__item">
+          <div class="timeline__year">2017 – 2025</div>
+          <h3 class="h3">Nine years of reps</h3>
+          <p>Years of entries, training, setbacks, and repetition — the unglamorous work that never shows up in a highlight reel but is the entire reason a qualified ride is possible at all.</p>
+        </div>
+        <div class="timeline__item">
+          <div class="timeline__year">Most recent rodeo</div>
+          <h3 class="h3">First qualified ride — 2nd place</h3>
+          <p>The breakthrough. My first qualified ride, and a second-place finish in the same rodeo. Proof the work was pointed in the right direction.</p>
+        </div>
+        <div class="timeline__item">
+          <div class="timeline__year">2027</div>
+          <h3 class="h3">Building the season</h3>
+          <p>Competing regularly at regional events, chasing more qualified rides and consistent results, and documenting all of it for TikTok and YouTube.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="eyebrow">From the arena</div>
+      <h2 class="h2" style="margin-bottom:36px;">Photos</h2>
+      <div class="gallery">
+        <% site.gallery.forEach(function(img) { %>
+        <div class="gallery__item">
+          <img src="<%= img.src %>" alt="<%= img.alt %>" loading="lazy">
+        </div>
+        <% }) %>
+      </div>
+      <p class="small" style="margin-top:24px;">More ride photos and clips go up on <a href="<%= site.social.tiktokUrl %>" target="_blank" rel="noopener" style="color:var(--copper-light); text-decoration:underline;">TikTok</a> and <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" style="color:var(--copper-light); text-decoration:underline;">YouTube</a> throughout the season.</p>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container center" style="max-width:640px;">
+      <div class="eyebrow center">2027 season</div>
+      <h2 class="h2">Want to be part of the next chapter?</h2>
+      <p class="lede center" style="margin:0 auto 28px;">I'm looking for sponsors who want to join the story while the audience and competition schedule are still growing.</p>
+      <a href="/sponsors" class="btn btn-primary">See sponsorship packages</a>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>

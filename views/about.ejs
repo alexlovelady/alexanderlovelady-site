@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero hero--page" style="background:var(--charcoal);">
+    <div class="container hero__content">
+      <div class="eyebrow">About</div>
+      <h1 class="h1">Navy veteran. Founder. Bull rider.</h1>
+      <p class="hero__sub">Three threads that don't usually go together — until you realize they're built on the same discipline.</p>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="split" style="align-items:center; margin-bottom:64px;">
+        <div style="max-width:340px;">
+          <img src="<%= site.images.portrait %>" alt="Alexander Lovelady" style="border-radius:2px; box-shadow:var(--shadow);">
+        </div>
+        <div>
+          <div class="eyebrow">Elizabeth City, North Carolina</div>
+          <h2 class="h2">Same discipline, three different arenas.</h2>
+          <p class="lede">Navy veteran, automation founder, and competitive bull rider — three roles that all come back to the same nine years of showing up.</p>
+        </div>
+      </div>
+      <div class="grid grid-3">
+        <div class="card">
+          <div class="card__corner"></div>
+          <div class="eyebrow" style="margin-bottom:14px;">Navy</div>
+          <h3 class="h3"><%= site.navyYears %> years of service</h3>
+          <p class="small" style="margin-top:12px;">Nine years in the U.S. Navy built the foundation everything else runs on — discipline under pressure, ownership of outcomes, and the project-management instincts I still use to ship software and plan a rodeo season.</p>
+        </div>
+        <div class="card">
+          <div class="card__corner"></div>
+          <div class="eyebrow" style="margin-bottom:14px;">Technology</div>
+          <h3 class="h3">Automation &amp; software</h3>
+          <p class="small" style="margin-top:12px;">Founder of AMP Titans Automations, the studio behind two live SaaS products — The Cleaners Place and RentNest. I'm also pursuing a computer science education and have built automated trading strategies and bots on the side.</p>
+        </div>
+        <div class="card">
+          <div class="card__corner"></div>
+          <div class="eyebrow" style="margin-bottom:14px;">Bull riding</div>
+          <h3 class="h3"><%= ridingYears %> years in the arena</h3>
+          <p class="small" style="margin-top:12px;">Riding since 2017 in <%= site.circuit %>, with the 2027 season now taking shape off the back of last season's progress.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="split">
+        <div>
+          <div class="eyebrow">The story</div>
+          <h2 class="h2">Two things people don't expect to hear in the same sentence.</h2>
+          <p class="lede">Most people I meet get one half of the story: either the guy who builds software, or the guy who rides bulls. Both come from the same nine years.</p>
+        </div>
+        <div>
+          <p>I joined the Navy at a point where I needed structure, and I got it — nine years of it. It's where I learned to plan for things going wrong, to take ownership of outcomes I couldn't fully control, and to keep showing up on the days that don't feel like progress. Those are the same skills that get you through a qualified ride, and the same skills that get a piece of software from an idea to a paying customer.</p>
+          <p>After the Navy, I put that discipline into two things at once: building AMP Titans Automations while pursuing a computer science education, and getting on bulls. AMP Titans is now the studio behind two live products — <a href="/work" style="color:var(--copper-light); text-decoration:underline;">The Cleaners Place and RentNest</a> — built to replace the spreadsheets and group texts small businesses were relying on. On the side, I've also built automated trading strategies and bots, which scratches the same itch as automation software: turning a manual, error-prone process into something systematic.</p>
+          <p>Bull riding has run in parallel the entire time. Nine years of entries, setbacks, and repetition, based near Elizabeth City, North Carolina and competing in <%= site.circuit %>. That work paid off with my first qualified ride and a second-place finish at my most recent rodeo — proof the approach is working, and the reason I'm building a full 2027 season around it now.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container center" style="max-width:640px;">
+      <div class="eyebrow center">Get in touch</div>
+      <h2 class="h2">Want to know more, or work together?</h2>
+      <p class="lede center" style="margin:0 auto 28px;">Reach out about the products, the 2027 season, or anything in between.</p>
+      <a href="/contact" class="btn btn-primary">Contact me</a>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>

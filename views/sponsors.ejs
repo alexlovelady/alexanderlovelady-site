@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero hero--page">
+    <div class="hero__media"><img src="<%= site.images.sponsorsHero %>" alt="Alexander Lovelady bull riding"></div>
+    <div class="hero__scrim"></div>
+    <div class="container hero__content">
+      <div class="hero__kicker">2027 Bull Riding Sponsorship</div>
+      <h1 class="h1">Partner for the 2027 season.</h1>
+      <p class="hero__sub">Nine years of persistence, a qualified ride, and a runner-up finish last season. The next chapter starts now — sponsorship opportunities for the 2027 rodeo season.</p>
+      <div class="btn-row">
+        <a href="/contact?type=sponsor" class="btn btn-primary">Start a sponsorship conversation</a>
+        <a href="<%= site.sponsorshipPacketUrl %>" class="btn btn-outline-dark" download>Download the sponsorship packet (PDF)</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark">
+    <div class="container">
+      <div class="stats">
+        <div class="stat"><div class="stat__num"><%= ridingYears %></div><div class="stat__label">Years committed to bull riding</div></div>
+        <div class="stat"><div class="stat__num" data-social-count="tiktok">—</div><div class="stat__label">TikTok followers (live)</div></div>
+        <div class="stat"><div class="stat__num" data-social-count="youtube">—</div><div class="stat__label">YouTube subscribers (live)</div></div>
+        <div class="stat"><div class="stat__num">2027</div><div class="stat__label">Season now building</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="split">
+        <div>
+          <div class="eyebrow">The rider and the story</div>
+          <h2 class="h2">I'm looking for sponsors who want to be part of the progression.</h2>
+          <p class="lede">I've spent nine years working toward a qualified bull ride, and last season I finally got there — plus a runner-up finish for good measure. Now I'm looking for sponsors who want to be part of what comes next.</p>
+          <p>My goal is to compete consistently, document the season honestly, and give partner businesses meaningful visibility through rodeo appearances and original social content. I compete in <%= site.circuit %>, <%= site.region.toLowerCase() %>.</p>
+        </div>
+        <div class="card">
+          <div class="card__corner"></div>
+          <h3 class="h3" style="margin-bottom:18px;">Audience &amp; content</h3>
+          <ul class="work-card__list">
+            <li>Short-form ride footage, practice clips, results, preparation, and behind-the-scenes updates</li>
+            <li>Sponsor tags and mentions integrated naturally into season content</li>
+            <li>A local and regional story built around persistence, progress, and the realities of bull riding</li>
+            <li>Performance reporting can include follower growth, views, reach, and engagement when available</li>
+          </ul>
+          <div class="social-stats" style="margin-top:22px;">
+            <div class="social-stat" style="border-color:var(--line-on-light); color:var(--ink);">
+              <span class="social-stat__icon" style="color:var(--copper);"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.6 5.82s.51.5 0 0A4.278 4.278 0 0 1 15.54 3h-3.09v12.4a2.592 2.592 0 0 1-2.59 2.5c-1.42 0-2.6-1.16-2.6-2.6c0-1.72 1.66-3.01 3.37-2.48V9.66c-3.45-.46-6.47 2.22-6.47 5.64c0 3.33 2.76 5.7 5.69 5.7c3.14 0 5.69-2.55 5.69-5.7V9.01a7.35 7.35 0 0 0 4.3 1.38V7.3s-1.88.09-3.24-1.48Z"/></svg></span>
+              <span><span class="social-stat__count" data-social-count="tiktok" style="color:var(--ink);">—</span><span class="social-stat__label" style="color:var(--ink-muted); display:block;">TikTok</span></span>
+            </div>
+            <div class="social-stat" style="border-color:var(--line-on-light); color:var(--ink);">
+              <span class="social-stat__icon" style="color:var(--copper);"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M23.5 6.2a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.56A3.02 3.02 0 0 0 .5 6.2 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.8 3.02 3.02 0 0 0 2.12 2.14C4.5 20.5 12 20.5 12 20.5s7.5 0 9.38-.56a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.8ZM9.6 15.6V8.4l6.4 3.6-6.4 3.6Z"/></svg></span>
+              <span><span class="social-stat__count" data-social-count="youtube" style="color:var(--ink);">—</span><span class="social-stat__label" style="color:var(--ink-muted); display:block;">YouTube</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="eyebrow">2027 season goals</div>
+      <h2 class="h2" style="margin-bottom:36px;">What this partnership is funding.</h2>
+      <div class="grid grid-2">
+        <ul class="work-card__list" style="font-size:16px;">
+          <% site.sponsorship.goals2027.forEach(function(g) { %><li><%= g %></li><% }) %>
+        </ul>
+        <div class="card card--dark">
+          <div class="card__corner"></div>
+          <h4 class="small" style="text-transform:uppercase; letter-spacing:0.08em; color:var(--copper-light); font-weight:700; margin-bottom:14px;">How sponsor support is used</h4>
+          <% site.sponsorship.fundUse.forEach(function(f) { %>
+          <div style="margin-bottom:14px;">
+            <strong style="font-size:14.5px;"><%= f.area %>:</strong> <span style="color:var(--paper-muted); font-size:14.5px;"><%= f.purpose %></span>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container">
+      <div class="eyebrow">Sponsorship packages</div>
+      <h2 class="h2" style="margin-bottom:12px;">Cash support, product, or service — whatever fits.</h2>
+      <p class="lede" style="margin-bottom:44px;">Packages can be adjusted around a sponsor's goals, budget, and industry. Cash support helps cover entry fees, travel, equipment, and training.</p>
+      <div class="grid grid-3">
+        <% site.sponsorship.tiers.forEach(function(tier) { %>
+        <div class="tier <%= tier.featured ? 'tier--featured' : '' %>">
+          <div class="tier__name"><%= tier.name %></div>
+          <div class="tier__price"><%= tier.price %></div>
+          <div class="tier__fit"><%= tier.fit %></div>
+          <ul class="tier__list">
+            <% tier.benefits.forEach(function(b) { %><li><%= b %></li><% }) %>
+          </ul>
+        </div>
+        <% }) %>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="grid grid-2">
+        <div>
+          <h3 class="h3" style="margin-bottom:16px;">In-kind partnerships</h3>
+          <p class="small" style="margin-bottom:16px;">In-kind support can be structured around the fair value of the product or service. Useful categories include:</p>
+          <ul class="work-card__list">
+            <% site.sponsorship.inKindCategories.forEach(function(c) { %><li><%= c %></li><% }) %>
+          </ul>
+        </div>
+        <div>
+          <h3 class="h3" style="margin-bottom:16px;">What every sponsor receives</h3>
+          <ul class="work-card__list">
+            <% site.sponsorship.everySponsorGets.forEach(function(c) { %><li><%= c %></li><% }) %>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container center" style="max-width:680px;">
+      <div class="eyebrow center">Build a partnership</div>
+      <h2 class="h2">A 2027 partner isn't joining after the story is established.</h2>
+      <p class="lede center" style="margin:0 auto 32px;">The partner helps make the next chapter possible. I'd be glad to discuss a package that fits your business, including category exclusivity, custom content, event-specific support, or an in-kind arrangement.</p>
+      <div class="btn-row center" style="justify-content:center;">
+        <a href="/contact?type=sponsor" class="btn btn-primary">Start a sponsorship conversation</a>
+        <a href="<%= site.sponsorshipPacketUrl %>" class="btn btn-outline-dark" download>Download the full packet (PDF)</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>

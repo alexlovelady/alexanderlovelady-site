@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero hero--page" style="min-height:38vh; background:var(--charcoal);">
+    <div class="container hero__content">
+      <div class="eyebrow">Contact</div>
+      <h1 class="h1">Let's talk.</h1>
+      <p class="hero__sub">Automation project or sponsorship inquiry — tell me which, and I'll route it to the right place.</p>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="split" style="align-items:flex-start;">
+        <div>
+          <form id="contactForm" novalidate>
+            <input type="hidden" name="type" value="<%= initialType %>">
+            <input type="hidden" name="formStartedAt" value="">
+            <div class="hp-field" aria-hidden="true">
+              <label for="website">Website</label>
+              <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+            </div>
+
+            <div class="form-toggle" role="group" aria-label="Inquiry type">
+              <button type="button" data-type-toggle="automation" class="<%= initialType === 'automation' ? 'is-active' : '' %>">
+                Automation project
+                <span>Custom software or automation work</span>
+              </button>
+              <button type="button" data-type-toggle="sponsor" class="<%= initialType === 'sponsor' ? 'is-active' : '' %>">
+                Sponsorship
+                <span>2027 bull riding season</span>
+              </button>
+            </div>
+
+            <div class="form-row">
+              <label for="name">Name</label>
+              <input type="text" id="name" name="name" required>
+            </div>
+            <div class="form-row">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" required>
+            </div>
+            <div class="form-row">
+              <label for="phone">Phone (optional)</label>
+              <input type="tel" id="phone" name="phone">
+            </div>
+            <div class="form-row" data-company-row style="display:<%= initialType === 'sponsor' ? '' : 'none' %>;">
+              <label for="company">Business / brand name</label>
+              <input type="text" id="company" name="company">
+            </div>
+            <div class="form-row">
+              <label for="message" data-message-label><%= initialType === 'sponsor' ? "Tell me about your business and what you're hoping to get from a partnership" : "Tell me about the process you want to automate" %></label>
+              <textarea id="message" name="message" required></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center;">Send message</button>
+            <div class="form-status" role="status"></div>
+          </form>
+        </div>
+
+        <div>
+          <div class="card">
+            <div class="card__corner"></div>
+            <h3 class="h3" style="margin-bottom:20px;">Direct contact</h3>
+            <p class="small" style="margin-bottom:6px;">Email</p>
+            <p style="margin-bottom:18px;"><a href="mailto:<%= site.contact.email %>" style="color:var(--copper-dark); text-decoration:underline;"><%= site.contact.email %></a></p>
+            <p class="small" style="margin-bottom:6px;">Phone</p>
+            <p style="margin-bottom:18px;"><a href="tel:<%= site.contact.phoneHref %>" style="color:var(--copper-dark); text-decoration:underline;"><%= site.contact.phone %></a></p>
+            <p class="small" style="margin-bottom:6px;">Based near</p>
+            <p style="margin-bottom:0;"><%= site.location %></p>
+            <div class="divider"></div>
+            <p class="small" style="margin-bottom:6px;">Follow along</p>
+            <div class="btn-row">
+              <a href="<%= site.social.tiktokUrl %>" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm">TikTok</a>
+              <a href="<%= site.social.youtubeUrl %>" target="_blank" rel="noopener" class="btn btn-outline-light btn-sm">YouTube</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>
