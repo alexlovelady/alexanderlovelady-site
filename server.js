@@ -40,8 +40,9 @@ app.use("/api", apiRoutes);
 const pages = {
   "/": { view: "index", title: "Alexander Lovelady — Automation Developer & Bull Rider", description: "I build systems. I ride bulls. Automation developer, founder, Navy veteran, and competitive bull rider based in Elizabeth City, North Carolina.", ogImage: site.images.homeHero },
   "/work": { view: "work", title: "Work — Alexander Lovelady", description: "The Cleaners Place and RentNest: two SaaS products built and shipped under AMP Titans Automations.", ogImage: "/images/logos/rentnest.jpg" },
+  "/portfolio": { view: "portfolio", title: "Portfolio — Alexander Lovelady", description: "Engineering portfolio: a production algorithmic trading platform, shipped SaaS products, and applied-AI tools built by Alexander Lovelady.", ogImage: site.images.portrait },
   "/bull-riding": { view: "bull-riding", title: "Bull Riding — Alexander Lovelady", description: `${ridingYears()} years chasing a qualified ride. Journey, results, photos, and videos from the arena.`, ogImage: site.images.bullRidingHero },
-  "/sponsors": { view: "sponsors", title: "2027 Sponsorship — Alexander Lovelady", description: "Partner with Alexander Lovelady for the 2027 bull riding season. First qualified ride, second-place finish, and a growing audience.", ogImage: site.images.sponsorsHero },
+  "/sponsors": { view: "sponsors", title: "2027 Sponsorship — Alexander Lovelady", description: "Partner with Alexander Lovelady for the 2027 bull riding season. First podium finish and a growing audience.", ogImage: site.images.sponsorsHero },
   "/about": { view: "about", title: "About — Alexander Lovelady", description: "Navy veteran, computer science student, automation founder, and bull rider — the full story.", ogImage: site.images.portrait },
   "/contact": { view: "contact", title: "Contact — Alexander Lovelady", description: "Get in touch about an automation project or the 2027 sponsorship season.", ogImage: site.images.homeHero },
 };

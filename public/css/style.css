@@ -282,6 +282,10 @@ button { font-family: inherit; }
   color: #4f7a4a; margin-bottom: 16px;
 }
 .work-card__status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #5a9153; }
+.work-card__status--neutral { color: var(--copper-light); }
+.work-card__status--neutral::before { background: var(--copper-light); }
+.section--light .work-card__status--neutral { color: var(--copper-dark); }
+.section--light .work-card__status--neutral::before { background: var(--copper-dark); }
 .work-card__tags { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 6px; }
 .tag {
   font-size: 12px; letter-spacing: 0.02em; padding: 5px 11px;

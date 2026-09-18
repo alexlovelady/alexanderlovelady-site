@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<%- include('partials/head') %>
+</head>
+<body>
+<a href="#main" class="skip-link">Skip to content</a>
+<%- include('partials/nav') %>
+
+<main id="main">
+
+  <section class="hero hero--page" style="background:var(--charcoal); min-height:48vh;">
+    <div class="container hero__content">
+      <div class="eyebrow">Portfolio</div>
+      <h1 class="h1">Selected engineering work.</h1>
+      <p class="hero__sub">A closer look at the systems and products behind AMP Titans Automations — for recruiters and engineers who want the technical detail the <a href="/work" style="color:var(--copper-light); text-decoration:underline;">Work</a> page skips.</p>
+      <div class="btn-row">
+        <a href="<%= site.githubUrl %>" target="_blank" rel="noopener" class="btn btn-primary">View GitHub →</a>
+        <a href="/contact" class="btn btn-outline-dark">Get in touch</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light">
+    <div class="container">
+      <div class="eyebrow">Case study — proprietary</div>
+      <h2 class="h2" style="margin-bottom:8px;"><%= site.portfolio.caseStudy.name %></h2>
+      <p class="lede" style="margin-bottom:36px;"><%= site.portfolio.caseStudy.tagline %> — <%= site.portfolio.caseStudy.oneLiner %></p>
+
+      <div class="split">
+        <div>
+          <div class="card" style="height:100%;">
+            <div class="card__corner"></div>
+            <h4 class="small" style="text-transform:uppercase; letter-spacing:0.08em; color:var(--copper-dark); font-weight:700; margin-bottom:10px;">The problem</h4>
+            <p style="margin-bottom:22px;"><%= site.portfolio.caseStudy.problem %></p>
+            <h4 class="small" style="text-transform:uppercase; letter-spacing:0.08em; color:var(--copper-dark); font-weight:700; margin-bottom:10px;">What I built</h4>
+            <p style="margin-bottom:0;"><%= site.portfolio.caseStudy.solution %></p>
+          </div>
+        </div>
+        <div>
+          <div class="work-card__tags" style="margin-bottom:20px;">
+            <% site.portfolio.caseStudy.stack.forEach(function(t) { %><span class="tag"><%= t %></span><% }) %>
+          </div>
+          <p class="small" style="border-left:2px solid var(--copper); padding-left:16px;"><%= site.portfolio.caseStudy.note %></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="eyebrow">Shipped products</div>
+      <h2 class="h2" style="margin-bottom:36px;">Live, in production, real users.</h2>
+      <div class="grid grid-2">
+        <% site.businesses.forEach(function(biz) { %>
+        <div class="card card--dark">
+          <div class="card__corner"></div>
+          <div class="logo-badge" style="margin-bottom:18px;"><img src="<%= biz.logo %>" alt="<%= biz.name %> logo" style="height:22px;"></div>
+          <h3 class="h3" style="margin-bottom:8px;"><%= biz.name %></h3>
+          <p class="small" style="color:var(--paper-muted); margin-bottom:18px;"><%= biz.oneLiner %></p>
+          <div class="work-card__tags" style="margin-bottom:20px;">
+            <% biz.tags.forEach(function(t) { %><span class="tag"><%= t %></span><% }) %>
+          </div>
+          <a href="<%= biz.url %>" target="_blank" rel="noopener" class="btn btn-outline-dark btn-sm">Visit live →</a>
+        </div>
+        <% }) %>
+      </div>
+      <p class="small" style="margin-top:24px;">Full case studies — problem, approach, and results — on the <a href="/work" style="color:var(--copper-light); text-decoration:underline;">Work</a> page.</p>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container">
+      <div class="eyebrow">Supporting projects</div>
+      <h2 class="h2" style="margin-bottom:36px;">Applied AI, tooling, and side projects.</h2>
+      <div class="grid grid-3">
+        <% site.portfolio.projects.forEach(function(p) { %>
+        <div class="card">
+          <div class="card__corner"></div>
+          <div class="work-card__status <%= p.status.toLowerCase().includes('live') ? '' : 'work-card__status--neutral' %>"><%= p.status %></div>
+          <h3 class="h3" style="margin:10px 0 10px;"><%= p.name %></h3>
+          <p class="small" style="margin-bottom:14px;"><%= p.oneLiner %></p>
+          <p class="small" style="margin-bottom:18px;"><%= p.detail %></p>
+          <div class="work-card__tags">
+            <% p.stack.forEach(function(t) { %><span class="tag"><%= t %></span><% }) %>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="eyebrow">Small tools</div>
+      <h2 class="h2" style="margin-bottom:36px;">Public repos, open to browse.</h2>
+      <div class="grid grid-2">
+        <% site.portfolio.smallTools.forEach(function(t) { %>
+        <a href="<%= t.url %>" target="_blank" rel="noopener" class="card card--dark" style="display:block; text-decoration:none;">
+          <div class="card__corner"></div>
+          <h3 class="h3" style="margin-bottom:8px; font-size:1.2rem;"><%= t.name %> →</h3>
+          <p class="small" style="color:var(--paper-muted); margin-bottom:16px;"><%= t.oneLiner %></p>
+          <div class="work-card__tags">
+            <% t.stack.forEach(function(s) { %><span class="tag"><%= s %></span><% }) %>
+          </div>
+        </a>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container center" style="max-width:640px;">
+      <div class="eyebrow center">Open to select opportunities</div>
+      <h2 class="h2">Building something interesting?</h2>
+      <p class="lede center" style="margin:0 auto 28px;">I'd like to hear about it — reach out, or look through the rest of the code on GitHub.</p>
+      <div class="btn-row center" style="justify-content:center;">
+        <a href="/contact" class="btn btn-primary">Get in touch</a>
+        <a href="<%= site.githubUrl %>" target="_blank" rel="noopener" class="btn btn-outline-light">GitHub profile</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<%- include('partials/footer') %>
+</body>
+</html>
