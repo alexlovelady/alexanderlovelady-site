@@ -314,6 +314,17 @@ button { font-family: inherit; }
 }
 .timeline__year { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--copper-light); font-weight: 600; margin-bottom: 6px; }
 
+/* ---- Certification badge ---- */
+.cert {
+  display: inline-flex; align-items: center; gap: 16px; margin-top: 36px;
+  padding: 10px 20px 10px 10px; border: 1px solid var(--line-on-dark); border-radius: var(--radius);
+  transition: border-color 0.15s ease;
+}
+.cert:hover { border-color: var(--copper-light); }
+.cert img { width: 72px; height: 72px; flex-shrink: 0; }
+.cert__text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: var(--paper-muted); }
+.cert__text strong { color: var(--paper); font-size: 15px; }
+
 /* ---- Upcoming schedule ---- */
 .schedule-list { border-top: 1px solid var(--line-on-dark); }
 .schedule-item {

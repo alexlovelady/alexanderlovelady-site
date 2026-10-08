@@ -18,6 +18,15 @@
         <a href="<%= site.githubUrl %>" target="_blank" rel="noopener" class="btn btn-primary">View GitHub →</a>
         <a href="/contact" class="btn btn-outline-dark">Get in touch</a>
       </div>
+      <% site.certifications.forEach(function(c) { %>
+      <a href="<%= c.url %>" target="_blank" rel="noopener" class="cert">
+        <img src="<%= c.image %>" alt="<%= c.name %> certification badge" width="72" height="72">
+        <span class="cert__text">
+          <strong><%= c.name %></strong>
+          <span>Issued by <%= c.issuer %> · Verify on Credly →</span>
+        </span>
+      </a>
+      <% }) %>
     </div>
   </section>
 
