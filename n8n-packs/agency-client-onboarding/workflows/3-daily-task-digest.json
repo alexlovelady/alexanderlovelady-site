@@ -1,0 +1,160 @@
+{
+  "name": "Agency 3 - Daily Task Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "34aadae4-4083-5cc4-bbc4-c580238d7a08",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"agency_name\": \"YOUR AGENCY NAME\",\n  \"owner_email\": \"you@example.com\",\n  \"default_pm_name\": \"Your Name\",\n  \"default_pm_email\": \"you@example.com\",\n  \"intake_form_url\": \"https://example.com/intake-form\",\n  \"calendar_link\": \"https://example.com/book-kickoff\",\n  \"folder_prefix\": \"Client\",\n  \"drive_parent_folder_id\": \"root\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"digest_days_ahead\": 2,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true\n}",
+        "options": {}
+      },
+      "id": "9f95459d-d322-515d-b83d-c323111569ec",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "74b9f3cc-3c44-5e16-ad48-e06aa5d218a3",
+      "name": "Read Tasks",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// One email per project manager listing overdue and soon-due tasks. Client-owned tasks are excluded.\nconst cfg = $('Config').first().json;\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst soon = (() => { const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + (cfg.digest_days_ahead ?? 2)); return d.toISOString().slice(0, 10); })();\nconst groups = {};\nfor (const it of $input.all()) {\n  const t = it.json;\n  if (!t.task_id || String(t.owner).toLowerCase() !== 'pm' || String(t.status).toLowerCase() === 'done') continue;\n  const due = String(t.due_date).slice(0, 10);\n  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(due) || due > soon) continue;\n  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(t.owner_email || ''))) continue;\n  (groups[t.owner_email] = groups[t.owner_email] || []).push({ ...t, due, overdue: due < today });\n}\nreturn Object.entries(groups).map(([email, list]) => {\n  list.sort((a, b) => a.due.localeCompare(b.due));\n  const row = t => `<li>${t.overdue ? '<strong style=\"color:#b00020\">OVERDUE</strong> ' : ''}${esc(t.client_name)}: ${esc(t.task)} (due ${esc(t.due)})</li>`;\n  return { json: { to: email, overdue_count: list.filter(t => t.overdue).length, total: list.length,\n    subject: `Onboarding digest: ${list.length} task${list.length === 1 ? '' : 's'} need attention`,\n    html: `<p>Onboarding tasks due by ${esc(soon)}:</p><ul>${list.map(row).join('')}</ul><p>Mark tasks as <em>done</em> in the Tasks sheet to remove them from this digest.</p>` } };\n});\n"
+      },
+      "id": "d6ca0788-e24b-5ca7-b9d3-46c9dadb5df3",
+      "name": "Build Digests",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c56fad5e-0227-5871-936a-9c208b77ee4c",
+      "name": "Send Digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Tasks": {
+      "main": [
+        [
+          {
+            "node": "Build Digests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digests": {
+      "main": [
+        [
+          {
+            "node": "Send Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "f33fd4c5-fef7-5849-98c9-dc698a8cdf51",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

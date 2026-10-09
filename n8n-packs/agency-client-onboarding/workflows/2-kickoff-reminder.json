@@ -1,0 +1,209 @@
+{
+  "name": "Agency 2 - Kickoff Reminder",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      },
+      "id": "7012465f-6bc1-5724-9b94-dd9bf16c05ca",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"agency_name\": \"YOUR AGENCY NAME\",\n  \"owner_email\": \"you@example.com\",\n  \"default_pm_name\": \"Your Name\",\n  \"default_pm_email\": \"you@example.com\",\n  \"intake_form_url\": \"https://example.com/intake-form\",\n  \"calendar_link\": \"https://example.com/book-kickoff\",\n  \"folder_prefix\": \"Client\",\n  \"drive_parent_folder_id\": \"root\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"digest_days_ahead\": 2,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true\n}",
+        "options": {}
+      },
+      "id": "49790522-2b66-52f0-9153-acf55343a49b",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "a47a3a1a-3da3-5f49-9f10-1ae917b9dd5e",
+      "name": "Read Clients",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Emails clients whose kickoff call is tomorrow, once.\nconst cfg = $('Config').first().json;\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst tomorrow = (() => { const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); })();\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (!r.deal_id || String(r.reminder_sent).toLowerCase() === 'yes') continue;\n  if (String(r.kickoff_date).slice(0, 10) !== tomorrow) continue;\n  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(r.contact_email || ''))) continue;\n  out.push({ json: {\n    deal_id: r.deal_id, to: r.contact_email, reminder_sent: 'yes',\n    subject: `Reminder: kickoff call tomorrow with ${cfg.agency_name}`,\n    html: `<p>Hi ${esc(r.contact_name)},</p><p>A quick reminder that our kickoff call is scheduled for tomorrow (${esc(tomorrow)}). If you haven't yet, please complete the intake form: <a href=\"${esc(cfg.intake_form_url)}\">${esc(cfg.intake_form_url)}</a>.</p><p>Need to reschedule? Use ${esc(cfg.calendar_link)}.</p><p>${esc(cfg.agency_name)}</p>`,\n  } });\n}\nreturn out;\n"
+      },
+      "id": "29aa325e-b7a2-5964-b0bb-edd87a79cd72",
+      "name": "Find Tomorrows Kickoffs",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "10efdec6-b54e-5d47-9dcd-e08cee90a34f",
+      "name": "Send Reminder",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "deal_id": "={{ $('Find Tomorrows Kickoffs').item.json.deal_id }}",
+            "reminder_sent": "yes"
+          },
+          "matchingColumns": [
+            "deal_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "c013c53e-cd44-5894-be9d-85d34f7d8b82",
+      "name": "Mark Reminder Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Clients",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Clients": {
+      "main": [
+        [
+          {
+            "node": "Find Tomorrows Kickoffs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Tomorrows Kickoffs": {
+      "main": [
+        [
+          {
+            "node": "Send Reminder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Reminder": {
+      "main": [
+        [
+          {
+            "node": "Mark Reminder Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "78dc118e-9688-5c8a-9058-90521b8b5785",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

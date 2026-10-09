@@ -1,0 +1,210 @@
+{
+  "name": "Cleaning 2 - Quote Follow-Ups",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * *"
+            }
+          ]
+        }
+      },
+      "id": "c3326208-a371-5048-94eb-3d8b01a00434",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CLEANING BUSINESS\",\n  \"business_phone\": \"(555) 000-0000\",\n  \"owner_email\": \"you@example.com\",\n  \"booking_link\": \"https://example.com/book\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"calendar_id\": \"primary\",\n  \"timezone\": \"America/New_York\",\n  \"service_zips\": [],\n  \"rebook_after_days\": 30,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true,\n  \"pricing\": {\n    \"base_hours\": 1.5,\n    \"hours_per_bedroom\": 0.5,\n    \"hours_per_bathroom\": 0.75,\n    \"hours_per_extra_1000_sqft\": 0.5,\n    \"price_per_labor_hour\": 60,\n    \"minimum_price\": 90,\n    \"range_percent\": 15,\n    \"service_multipliers\": {\n      \"standard\": 1,\n      \"deep\": 1.6,\n      \"move-out\": 1.8\n    },\n    \"frequency_discounts\": {\n      \"one-time\": 0,\n      \"monthly\": 0.05,\n      \"biweekly\": 0.1,\n      \"weekly\": 0.15\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "7d3c62ee-f442-5726-9a59-3fbb53f60ff2",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "c905b607-cc12-5b7d-b2c8-98fa3e3488bb",
+      "name": "Read Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sends follow-up #1 after 2 days and #2 after 7 days to quoted leads who haven't booked. Stops if the lead opted out.\nconst cfg = $('Config').first().json;\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 86400000);\nconst yes = v => String(v).toLowerCase() === 'yes';\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (!r.lead_id || String(r.status).toLowerCase() !== 'quoted' || yes(r.followups_stopped)) continue;\n  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(r.email || ''))) continue;\n  const age = daysBetween(String(r.created_at).slice(0, 10), today);\n  if (!Number.isFinite(age)) continue;\n  const first = esc(String(r.name || '').split(' ')[0]);\n  const foot = '<p style=\"color:#777;font-size:12px\">Reply STOP to stop follow-up emails.</p>';\n  let which = null;\n  if (age >= 7 && !yes(r.fu2_sent)) which = 2;\n  else if (age >= 2 && !yes(r.fu1_sent) && age < 7) which = 1;\n  if (!which) continue;\n  const body = which === 1\n    ? `<p>Hi ${first},</p><p>Just checking in on the cleaning estimate we sent (${r.est_low ? '$' + r.est_low + ' to $' + r.est_high : 'see previous email'}). Would you like me to hold a time for you? <a href=\"${esc(cfg.booking_link)}\">Book here</a> or reply with a day that works.</p><p>${esc(cfg.business_name)}</p>${foot}`\n    : `<p>Hi ${first},</p><p>I'm closing out last week's estimates. If you're still interested, we'd be glad to help: <a href=\"${esc(cfg.booking_link)}\">book here</a>. If the timing isn't right, no problem at all.</p><p>${esc(cfg.business_name)}</p>${foot}`;\n  out.push({ json: {\n    lead_id: r.lead_id, to: r.email, subject: which === 1 ? `Still need a clean, ${String(r.name || '').split(' ')[0]}?` : 'Closing out your cleaning estimate', html: body,\n    fu1_sent: which === 1 ? 'yes' : (r.fu1_sent || ''), fu2_sent: which === 2 ? 'yes' : (r.fu2_sent || ''),\n  } });\n}\nreturn out;\n"
+      },
+      "id": "84d639d5-10a6-5aa5-b7ab-ebd2e7db49e9",
+      "name": "Prepare Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "fab815ad-07b2-5bd3-906d-5972773fcef7",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $('Prepare Follow-ups').item.json.lead_id }}",
+            "fu1_sent": "={{ $('Prepare Follow-ups').item.json.fu1_sent }}",
+            "fu2_sent": "={{ $('Prepare Follow-ups').item.json.fu2_sent }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "f0447d4b-37e3-5279-b75b-1b0641cb94e3",
+      "name": "Mark Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads": {
+      "main": [
+        [
+          {
+            "node": "Prepare Follow-ups",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Follow-ups": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Mark Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0d8e02a1-34d9-52c5-919b-b3cd5fdc6b46",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,479 @@
+{
+  "name": "Agency 1 - Deal Won to Onboarding Kickoff",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agency-deal-won",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8d52a0b0-d052-5301-849a-edcd817be15b",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "f7504236-7e22-5c81-a765-0819ba80229a"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"agency_name\": \"YOUR AGENCY NAME\",\n  \"owner_email\": \"you@example.com\",\n  \"default_pm_name\": \"Your Name\",\n  \"default_pm_email\": \"you@example.com\",\n  \"intake_form_url\": \"https://example.com/intake-form\",\n  \"calendar_link\": \"https://example.com/book-kickoff\",\n  \"folder_prefix\": \"Client\",\n  \"drive_parent_folder_id\": \"root\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"digest_days_ahead\": 2,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true\n}",
+        "options": {}
+      },
+      "id": "5ddddbe2-b9e2-5484-a82f-86dd9cec8839",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validates the \"deal won\" webhook, blocks duplicates, builds the welcome email and the onboarding checklist.\nconst cfg = $('Config').first().json;\nconst store = $getWorkflowStaticData('global');\nstore.seen = store.seen || {};\n\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst addBizDays = (ymd, n) => { let d = ymd, left = n; while (left > 0) { d = addDays(d, 1); const w = new Date(d + 'T00:00:00Z').getUTCDay(); if (w !== 0 && w !== 6) left--; } return d; };\nconst validDate = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00Z'));\n\nconst out = [];\nfor (const item of $('Webhook').all()) {\n  const b = item.json.body || {};\n  const dry = cfg.dry_run === true;\n  if (cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret) {\n    out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue;\n  }\n  const required = ['deal_id', 'client_name', 'contact_name', 'contact_email', 'package'];\n  const missing = required.filter(k => !String(b[k] ?? '').trim());\n  const email = String(b.contact_email || '').trim().toLowerCase();\n  const problems = missing.map(k => 'missing ' + k);\n  if (email && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) problems.push('invalid contact_email');\n  if (b.kickoff_date && !validDate(String(b.kickoff_date))) problems.push('kickoff_date must be YYYY-MM-DD');\n  if (problems.length) { out.push({ json: { status: 'invalid', errors: problems, dry_run: dry } }); continue; }\n  const dealId = String(b.deal_id).trim();\n  if (store.seen[dealId]) { out.push({ json: { status: 'duplicate', deal_id: dealId, dry_run: dry } }); continue; }\n  if (!dry) store.seen[dealId] = today;\n\n  const pmEmail = String(b.project_manager_email || cfg.default_pm_email || '').trim();\n  const pmName = String(b.project_manager_name || cfg.default_pm_name || 'your project manager').trim();\n  const kickoff = b.kickoff_date ? String(b.kickoff_date) : addBizDays(today, 3);\n  const slug = String(b.client_name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40);\n  const folder = `${cfg.folder_prefix || 'Client'} - ${String(b.client_name).trim()}`;\n\n  const taskDefs = [\n    ['Confirm signed contract and send first invoice', 'PM', 0],\n    ['Create shared project folder and grant access', 'PM', 1],\n    ['Client completes intake form', 'Client', 2],\n    ['Client sends brand assets and access (via secure method, never email passwords)', 'Client', 3],\n    ['Kickoff call', 'PM', null],\n    ['Share project plan and milestones', 'PM', 2],\n  ];\n  const tasks = taskDefs.map(([task, owner, off], i) => ({\n    task_id: `${dealId}-${i + 1}`, deal_id: dealId, client_name: String(b.client_name).trim(), task, owner,\n    owner_email: owner === 'PM' ? pmEmail : email,\n    due_date: off === null ? kickoff : (task.startsWith('Share project plan') ? addBizDays(kickoff, off) : addBizDays(today, off)),\n    status: 'open',\n  }));\n\n  const html = `<p>Hi ${esc(b.contact_name)},</p>\n<p>Welcome to ${esc(cfg.agency_name)}! We're glad to be working with ${esc(b.client_name)}.</p>\n<p><strong>Next steps</strong></p>\n<ol>\n<li>Fill in the short intake form: <a href=\"${esc(cfg.intake_form_url)}\">${esc(cfg.intake_form_url)}</a></li>\n<li>Pick a time for our kickoff call (target date ${esc(kickoff)}): <a href=\"${esc(cfg.calendar_link)}\">${esc(cfg.calendar_link)}</a></li>\n<li>${esc(pmName)} will be your main contact${pmEmail ? ' (' + esc(pmEmail) + ')' : ''}.</li>\n</ol>\n<p>Please do not email passwords. We'll send a secure way to share access.</p>\n<p>${esc(cfg.agency_name)}</p>`;\n\n  out.push({ json: {\n    status: 'new', dry_run: dry, deal_id: dealId, client_name: String(b.client_name).trim(), client_slug: slug,\n    contact_name: String(b.contact_name).trim(), contact_email: email, package: String(b.package).trim(),\n    pm_email: pmEmail, kickoff_date: kickoff, folder_name: folder, created_at: today,\n    welcome_subject: `Welcome to ${cfg.agency_name}, ${String(b.contact_name).trim()}!`, welcome_html: html, tasks,\n  } });\n}\nreturn out;\n"
+      },
+      "id": "3aacd83c-5050-5212-9be6-d3f10cc7f180",
+      "name": "Prepare Deal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2917ee99-4de2-59cd-8a69-183b7b16bc5a",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2917ee99-4de2-59cd-8a69-183b7b16bc5a",
+      "name": "Valid and New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status === \"unauthorized\" ? 401 : ($json.status === \"invalid\" ? 422 : 200) }}"
+        }
+      },
+      "id": "c040d7da-59d8-5335-b9b4-799ca89aa0c0",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "70757ef9-db0f-5c92-b61c-d397aaf151fb",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "70757ef9-db0f-5c92-b61c-d397aaf151fb",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ dry_run: true, preview: $json }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "eac49d5b-4de6-5032-869d-8b79d9e2af2a",
+      "name": "Respond: Dry Run Preview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.contact_email }}",
+        "subject": "={{ $json.welcome_subject }}",
+        "emailType": "html",
+        "message": "={{ $json.welcome_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "9cad389d-8bb2-579a-9849-ed8b6a5410cd",
+      "name": "Send Welcome Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "folder",
+        "operation": "create",
+        "name": "={{ $('Prepare Deal').first().json.folder_name }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $('Config').first().json.drive_parent_folder_id }}"
+        },
+        "options": {}
+      },
+      "id": "f4ea6649-a8a0-5618-884c-8bcaa66c6fab",
+      "name": "Create Drive Folder",
+      "type": "n8n-nodes-base.googleDrive",
+      "typeVersion": 3,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Connect your Google Drive credential."
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Clients",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "deal_id": "={{ $('Prepare Deal').first().json.deal_id }}",
+            "client_name": "={{ $('Prepare Deal').first().json.client_name }}",
+            "contact_name": "={{ $('Prepare Deal').first().json.contact_name }}",
+            "contact_email": "={{ $('Prepare Deal').first().json.contact_email }}",
+            "package": "={{ $('Prepare Deal').first().json.package }}",
+            "pm_email": "={{ $('Prepare Deal').first().json.pm_email }}",
+            "kickoff_date": "={{ $('Prepare Deal').first().json.kickoff_date }}",
+            "folder_name": "={{ $('Prepare Deal').first().json.folder_name }}",
+            "created_at": "={{ $('Prepare Deal').first().json.created_at }}",
+            "reminder_sent": ""
+          },
+          "matchingColumns": [
+            "deal_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "15dbdf0e-d9ae-5a76-9027-16f1f3aa4002",
+      "name": "Log Client",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns the checklist inside the prepared deal into one item per task, for the Tasks sheet.\nreturn $('Prepare Deal').first().json.tasks.map(t => ({ json: t }));\n"
+      },
+      "id": "b9e52fba-0916-5d01-b560-d64dc38b2836",
+      "name": "Expand Tasks",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tasks",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "task_id": "={{ $json.task_id }}",
+            "deal_id": "={{ $json.deal_id }}",
+            "client_name": "={{ $json.client_name }}",
+            "task": "={{ $json.task }}",
+            "owner": "={{ $json.owner }}",
+            "owner_email": "={{ $json.owner_email }}",
+            "due_date": "={{ $json.due_date }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "f770d3a1-a347-5eb2-8773-764be3aeb60f",
+      "name": "Add Tasks",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1800,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collapses the many task rows into one response for the webhook caller.\nconst p = $('Prepare Deal').first().json;\nreturn [{ json: { status: 'onboarding_started', deal_id: p.deal_id, client: p.client_name, kickoff_date: p.kickoff_date, tasks_created: p.tasks.length } }];\n"
+      },
+      "id": "e8aaa191-157b-5c9c-a7bd-b2354951a908",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "b922aeb2-b967-54b4-a5a2-d387146c4c2d",
+      "name": "Respond: OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare Deal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Deal": {
+      "main": [
+        [
+          {
+            "node": "Valid and New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Welcome Email": {
+      "main": [
+        [
+          {
+            "node": "Create Drive Folder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Drive Folder": {
+      "main": [
+        [
+          {
+            "node": "Log Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Client": {
+      "main": [
+        [
+          {
+            "node": "Expand Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Tasks": {
+      "main": [
+        [
+          {
+            "node": "Add Tasks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Tasks": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b777f5d1-52e5-5258-924f-af90a1f10aa9",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

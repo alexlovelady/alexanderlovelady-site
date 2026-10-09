@@ -1,0 +1,211 @@
+{
+  "name": "Cleaning 4 - Daily Customer Touchpoints",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 17 * * *"
+            }
+          ]
+        }
+      },
+      "id": "6386ceb4-e36d-5b4f-83e5-7b319fc1dfe9",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CLEANING BUSINESS\",\n  \"business_phone\": \"(555) 000-0000\",\n  \"owner_email\": \"you@example.com\",\n  \"booking_link\": \"https://example.com/book\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"calendar_id\": \"primary\",\n  \"timezone\": \"America/New_York\",\n  \"service_zips\": [],\n  \"rebook_after_days\": 30,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true,\n  \"pricing\": {\n    \"base_hours\": 1.5,\n    \"hours_per_bedroom\": 0.5,\n    \"hours_per_bathroom\": 0.75,\n    \"hours_per_extra_1000_sqft\": 0.5,\n    \"price_per_labor_hour\": 60,\n    \"minimum_price\": 90,\n    \"range_percent\": 15,\n    \"service_multipliers\": {\n      \"standard\": 1,\n      \"deep\": 1.6,\n      \"move-out\": 1.8\n    },\n    \"frequency_discounts\": {\n      \"one-time\": 0,\n      \"monthly\": 0.05,\n      \"biweekly\": 0.1,\n      \"weekly\": 0.15\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "94a1de39-e861-51b4-bec5-32129b58069b",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "00822ad9-2870-5721-98f0-39124951250c",
+      "name": "Read Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Daily: (1) reminder the day before a booking, (2) feedback request the day after a completed job,\n// (3) rebook nudge 30 days after a completed one-time job. Every message is sent at most once per lead.\nconst cfg = $('Config').first().json;\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst shift = n => { const d = new Date(today + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst yes = v => String(v).toLowerCase() === 'yes';\nconst [tomorrow, yesterday, rebookDay] = [shift(1), shift(-1), shift(-(cfg.rebook_after_days ?? 30))];\nconst out = [];\nfor (const it of $input.all()) {\n  const r = it.json;\n  if (!r.lead_id || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(r.email || ''))) continue;\n  const status = String(r.status).toLowerCase();\n  const date = String(r.booking_date || '').slice(0, 10);\n  const first = esc(String(r.name || '').split(' ')[0] || 'there');\n  const base = { lead_id: r.lead_id, to: r.email, reminder_sent: r.reminder_sent || '', feedback_sent: r.feedback_sent || '', rebook_sent: r.rebook_sent || '' };\n  const stopped = yes(r.followups_stopped);\n\n  if (status === 'booked' && date === tomorrow && !yes(r.reminder_sent)) {\n    out.push({ json: { ...base, kind: 'reminder', reminder_sent: 'yes', subject: `Reminder: your cleaning is tomorrow`,\n      html: `<p>Hi ${first},</p><p>A reminder that your clean is tomorrow, ${esc(date)} at ${esc(r.booking_time)}${r.address ? ' at ' + esc(r.address) : ''}. Reply if anything has changed.</p><p>${esc(cfg.business_name)}</p>` } });\n  } else if (status === 'completed' && !stopped && date === yesterday && !yes(r.feedback_sent)) {\n    out.push({ json: { ...base, kind: 'feedback', feedback_sent: 'yes', subject: `How was your clean?`,\n      html: `<p>Hi ${first},</p><p>Thank you for choosing ${esc(cfg.business_name)}. We'd love your honest feedback. If you'd like to share it publicly, you can leave a review here: <a href=\"${esc(cfg.review_link)}\">${esc(cfg.review_link)}</a>. If anything wasn't right, reply to this email and we'll make it right.</p><p>${esc(cfg.business_name)}</p><p style=\"color:#777;font-size:12px\">Reply STOP to stop emails from us.</p>` } });\n  } else if (status === 'completed' && !stopped && date === rebookDay && String(r.frequency).toLowerCase() === 'one-time' && !yes(r.rebook_sent)) {\n    out.push({ json: { ...base, kind: 'rebook', rebook_sent: 'yes', subject: `Ready for your next clean?`,\n      html: `<p>Hi ${first},</p><p>It's been about a month since your last clean. Want to book another, or set up a recurring schedule (recurring clients get a better rate)? <a href=\"${esc(cfg.booking_link)}\">Book here</a>.</p><p>${esc(cfg.business_name)}</p><p style=\"color:#777;font-size:12px\">Reply STOP to stop emails from us.</p>` } });\n  }\n}\nreturn out;\n"
+      },
+      "id": "dd9a8384-96cf-5b7c-9b1b-5afb16e68688",
+      "name": "Prepare Touchpoints",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "af2eb82d-990c-5d38-837d-b351988b63d7",
+      "name": "Send Message",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $('Prepare Touchpoints').item.json.lead_id }}",
+            "reminder_sent": "={{ $('Prepare Touchpoints').item.json.reminder_sent }}",
+            "feedback_sent": "={{ $('Prepare Touchpoints').item.json.feedback_sent }}",
+            "rebook_sent": "={{ $('Prepare Touchpoints').item.json.rebook_sent }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "ef024abe-d5ae-5199-bd88-c85653397b70",
+      "name": "Mark Sent",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Leads": {
+      "main": [
+        [
+          {
+            "node": "Prepare Touchpoints",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Touchpoints": {
+      "main": [
+        [
+          {
+            "node": "Send Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Message": {
+      "main": [
+        [
+          {
+            "node": "Mark Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0bd4d349-b920-5055-a8b2-c71022e50193",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

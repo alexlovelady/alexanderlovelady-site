@@ -1,0 +1,89 @@
+{
+  "name": "Cleaning - Error Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "99b3cec9-7c75-5262-9f8c-e0aaf1745825",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CLEANING BUSINESS\",\n  \"business_phone\": \"(555) 000-0000\",\n  \"owner_email\": \"you@example.com\",\n  \"booking_link\": \"https://example.com/book\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"calendar_id\": \"primary\",\n  \"timezone\": \"America/New_York\",\n  \"service_zips\": [],\n  \"rebook_after_days\": 30,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true,\n  \"pricing\": {\n    \"base_hours\": 1.5,\n    \"hours_per_bedroom\": 0.5,\n    \"hours_per_bathroom\": 0.75,\n    \"hours_per_extra_1000_sqft\": 0.5,\n    \"price_per_labor_hour\": 60,\n    \"minimum_price\": 90,\n    \"range_percent\": 15,\n    \"service_multipliers\": {\n      \"standard\": 1,\n      \"deep\": 1.6,\n      \"move-out\": 1.8\n    },\n    \"frequency_discounts\": {\n      \"one-time\": 0,\n      \"monthly\": 0.05,\n      \"biweekly\": 0.1,\n      \"weekly\": 0.15\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "bd9528c1-8aa7-5d95-b862-4a418e412b1a",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "=n8n workflow failed: {{ $('Error Trigger').first().json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<p>Workflow <strong>{{ $('Error Trigger').first().json.workflow.name }}</strong> failed at node <strong>{{ $('Error Trigger').first().json.execution.lastNodeExecuted }}</strong>.</p><p>{{ $('Error Trigger').first().json.execution.error.message }}</p><p>Execution: {{ $('Error Trigger').first().json.execution.url }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "2615a521-881e-5862-b107-f820dea9686c",
+      "name": "Email Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Email Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "a427828f-43e8-5d83-91ee-5aeb1115b526",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

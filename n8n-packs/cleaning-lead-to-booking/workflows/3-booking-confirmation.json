@@ -1,0 +1,371 @@
+{
+  "name": "Cleaning 3 - Booking Confirmation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cleaning-booking",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "16486d0c-5a2f-5880-92a6-255d3efcfa59",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "bf9c101b-5564-5eb7-bd95-6aea09d6bd29"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CLEANING BUSINESS\",\n  \"business_phone\": \"(555) 000-0000\",\n  \"owner_email\": \"you@example.com\",\n  \"booking_link\": \"https://example.com/book\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"calendar_id\": \"primary\",\n  \"timezone\": \"America/New_York\",\n  \"service_zips\": [],\n  \"rebook_after_days\": 30,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true,\n  \"pricing\": {\n    \"base_hours\": 1.5,\n    \"hours_per_bedroom\": 0.5,\n    \"hours_per_bathroom\": 0.75,\n    \"hours_per_extra_1000_sqft\": 0.5,\n    \"price_per_labor_hour\": 60,\n    \"minimum_price\": 90,\n    \"range_percent\": 15,\n    \"service_multipliers\": {\n      \"standard\": 1,\n      \"deep\": 1.6,\n      \"move-out\": 1.8\n    },\n    \"frequency_discounts\": {\n      \"one-time\": 0,\n      \"monthly\": 0.05,\n      \"biweekly\": 0.1,\n      \"weekly\": 0.15\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "23e667d5-92d2-59f4-b68b-2a631728c904",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validates a booking and prepares the confirmation email and calendar times.\nconst cfg = $('Config').first().json;\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst out = [];\nfor (const item of $('Webhook').all()) {\n  const b = item.json.body || {};\n  const dry = cfg.dry_run === true;\n  if (cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret) {\n    out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue;\n  }\n  const email = String(b.email || '').trim().toLowerCase();\n  const problems = [];\n  if (!String(b.lead_id || '').trim()) problems.push('missing lead_id');\n  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) problems.push('missing or invalid email');\n  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(String(b.date || ''))) problems.push('date must be YYYY-MM-DD');\n  if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(String(b.start_time || ''))) problems.push('start_time must be HH:MM (24h)');\n  const hours = parseFloat(b.duration_hours ?? 2);\n  if (!(hours > 0 && hours <= 12)) problems.push('duration_hours must be between 0 and 12');\n  if (problems.length) { out.push({ json: { status: 'invalid', errors: problems, dry_run: dry } }); continue; }\n\n  const pad = n => String(n).padStart(2, '0');\n  const [sh, sm] = b.start_time.split(':').map(Number);\n  const endMin = sh * 60 + sm + Math.round(hours * 60);\n  const endDayOffset = Math.floor(endMin / 1440);\n  const end = new Date(b.date + 'T00:00:00Z'); end.setUTCDate(end.getUTCDate() + endDayOffset);\n  const endDate = end.toISOString().slice(0, 10);\n  const endTime = `${pad(Math.floor((endMin % 1440) / 60))}:${pad(endMin % 60)}`;\n  const name = String(b.name || '').trim();\n  out.push({ json: {\n    status: 'new', dry_run: dry, lead_id: String(b.lead_id).trim(), email, name, address: String(b.address || '').trim(),\n    booking_date: b.date, booking_time: b.start_time, lead_status: 'booked', reminder_sent: '',\n    start_iso: `${b.date}T${b.start_time}:00`, end_iso: `${endDate}T${endTime}:00`,\n    event_title: `Clean: ${name || email}`,\n    subject: `Your cleaning is booked for ${b.date} at ${b.start_time}`,\n    html: `<p>Hi ${esc(name.split(' ')[0] || 'there')},</p><p>You're booked! <strong>${esc(b.date)} at ${esc(b.start_time)}</strong>${b.address ? ' at ' + esc(b.address) : ''}.</p><p>Expect us for about ${esc(hours)} hour(s). Please make sure we can access the home. Need to change something? Reply to this email or call ${esc(cfg.business_phone)}.</p><p>${esc(cfg.business_name)}</p>`,\n  } });\n}\nreturn out;\n"
+      },
+      "id": "8172296b-aded-5607-b7e2-88c51856c604",
+      "name": "Prepare Booking",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "75decaa3-dfd1-58e8-bd81-5a6a75422f3b",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "75decaa3-dfd1-58e8-bd81-5a6a75422f3b",
+      "name": "Valid and New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status === \"unauthorized\" ? 401 : ($json.status === \"invalid\" ? 422 : 200) }}"
+        }
+      },
+      "id": "546b8bbf-4838-545d-b833-7d26dc8ba758",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "80f2f8c7-f4c3-5b14-abab-37c9ccb9e840",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "80f2f8c7-f4c3-5b14-abab-37c9ccb9e840",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ dry_run: true, preview: $json }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "fac898c6-9907-51af-92ba-16db993dcc07",
+      "name": "Respond: Dry Run Preview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.lead_id }}",
+            "status": "={{ $json.lead_status }}",
+            "booking_date": "={{ $json.booking_date }}",
+            "booking_time": "={{ $json.booking_time }}",
+            "address": "={{ $json.address }}",
+            "reminder_sent": "={{ $json.reminder_sent }}"
+          },
+          "matchingColumns": [
+            "lead_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "dac96489-3236-5370-b257-f3b39038b04b",
+      "name": "Update Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare Booking').first().json.email }}",
+        "subject": "={{ $('Prepare Booking').first().json.subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare Booking').first().json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "f69e1704-3abb-5a0f-aa6a-ab4b116752dd",
+      "name": "Send Confirmation",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.calendar_id }}",
+          "mode": "id"
+        },
+        "start": "={{ $('Prepare Booking').first().json.start_iso }}",
+        "end": "={{ $('Prepare Booking').first().json.end_iso }}",
+        "additionalFields": {
+          "summary": "={{ $('Prepare Booking').first().json.event_title }}",
+          "location": "={{ $('Prepare Booking').first().json.address }}"
+        }
+      },
+      "id": "d7ca5f13-6a4f-5e89-aea1-4a1768ed046a",
+      "name": "Create Calendar Event",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        1400,
+        0
+      ],
+      "notes": "Connect your Google Calendar credential, or delete this node."
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: 'booked', lead_id: $('Prepare Booking').first().json.lead_id }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "80735634-41e5-5415-a5de-e89e48b10f20",
+      "name": "Respond: OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare Booking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Booking": {
+      "main": [
+        [
+          {
+            "node": "Valid and New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Lead": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation": {
+      "main": [
+        [
+          {
+            "node": "Create Calendar Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Calendar Event": {
+      "main": [
+        [
+          {
+            "node": "Respond: OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fa09b4ec-43f7-521c-a964-e4b7fe41f458",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

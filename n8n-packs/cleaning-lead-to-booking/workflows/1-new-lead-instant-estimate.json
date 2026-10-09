@@ -1,0 +1,405 @@
+{
+  "name": "Cleaning 1 - New Lead Instant Estimate",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cleaning-new-lead",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "46f68eb6-bf95-54fa-be1f-f331115f3219",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "ae372097-06f3-5e8b-aec3-a37ff6195877"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CLEANING BUSINESS\",\n  \"business_phone\": \"(555) 000-0000\",\n  \"owner_email\": \"you@example.com\",\n  \"booking_link\": \"https://example.com/book\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"calendar_id\": \"primary\",\n  \"timezone\": \"America/New_York\",\n  \"service_zips\": [],\n  \"rebook_after_days\": 30,\n  \"webhook_secret\": \"\",\n  \"dry_run\": true,\n  \"pricing\": {\n    \"base_hours\": 1.5,\n    \"hours_per_bedroom\": 0.5,\n    \"hours_per_bathroom\": 0.75,\n    \"hours_per_extra_1000_sqft\": 0.5,\n    \"price_per_labor_hour\": 60,\n    \"minimum_price\": 90,\n    \"range_percent\": 15,\n    \"service_multipliers\": {\n      \"standard\": 1,\n      \"deep\": 1.6,\n      \"move-out\": 1.8\n    },\n    \"frequency_discounts\": {\n      \"one-time\": 0,\n      \"monthly\": 0.05,\n      \"biweekly\": 0.1,\n      \"weekly\": 0.15\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "415a2144-7e14-5008-a5fa-d2ac529b5aca",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validates a website lead, blocks duplicates, estimates a price range and writes the instant reply.\nconst cfg = $('Config').first().json;\nconst store = $getWorkflowStaticData('global');\nstore.seen = store.seen || {};\n\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst money = n => '$' + Math.round(n).toLocaleString('en-US');\nconst num = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n) && n >= 0 ? n : d; };\n\nconst out = [];\nfor (const item of $('Webhook').all()) {\n  const b = item.json.body || {};\n  const dry = cfg.dry_run === true;\n  if (cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret) {\n    out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue;\n  }\n  const email = String(b.email || '').trim().toLowerCase();\n  const name = String(b.name || '').trim();\n  const problems = [];\n  if (!name) problems.push('missing name');\n  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) problems.push('missing or invalid email');\n  if (problems.length) { out.push({ json: { status: 'invalid', errors: problems, dry_run: dry } }); continue; }\n\n  const service = String(b.service || 'standard').toLowerCase();\n  const key = `${email}|${service}|${String(b.preferred_date || '')}`;\n  if (store.seen[key] === today) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry) store.seen[key] = today;\n\n  const beds = num(b.bedrooms, 2), baths = num(b.bathrooms, 1), sqft = num(b.sqft, 0);\n  const rates = cfg.pricing;\n  const svcMult = (rates.service_multipliers || {})[service] ?? 1;\n  const hours = (rates.base_hours + rates.hours_per_bedroom * beds + rates.hours_per_bathroom * baths + (sqft > 2000 ? rates.hours_per_extra_1000_sqft * ((sqft - 2000) / 1000) : 0)) * svcMult;\n  const freq = String(b.frequency || 'one-time').toLowerCase();\n  const disc = (rates.frequency_discounts || {})[freq] ?? 0;\n  const mid = Math.max(rates.minimum_price, hours * rates.price_per_labor_hour * (1 - disc));\n  const low = Math.max(rates.minimum_price, mid * (1 - rates.range_percent / 100));\n  const high = Math.max(low, mid * (1 + rates.range_percent / 100));\n\n  const zip = String(b.zip || '').trim().slice(0, 5);\n  const inArea = (cfg.service_zips || []).length === 0 || cfg.service_zips.includes(zip);\n  const leadId = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\n\n  let subject, html;\n  if (inArea) {\n    subject = `Your cleaning estimate from ${cfg.business_name}`;\n    html = `<p>Hi ${esc(name.split(' ')[0])},</p>\n<p>Thanks for contacting ${esc(cfg.business_name)}! Based on what you told us (${esc(beds)} bed, ${esc(baths)} bath, ${esc(service)} clean, ${esc(freq)}), a typical price is <strong>${money(low)} to ${money(high)}</strong>.</p>\n<p>This is an estimate, not a final quote. The final price depends on the home's condition and any extras.</p>\n<p><a href=\"${esc(cfg.booking_link)}\">Book or confirm your clean here</a>, or just reply to this email with questions.</p>\n<p>${esc(cfg.business_name)}<br>${esc(cfg.business_phone)}</p>\n<p style=\"color:#777;font-size:12px\">You're receiving this because you asked for an estimate. Reply STOP if you don't want follow-up emails.</p>`;\n  } else {\n    subject = `About your cleaning request - ${cfg.business_name}`;\n    html = `<p>Hi ${esc(name.split(' ')[0])},</p><p>Thank you for reaching out. Unfortunately ${esc(zip || 'your area')} is outside the area we currently serve, so we can't take this job. We appreciate you thinking of us.</p><p>${esc(cfg.business_name)}</p>`;\n  }\n\n  out.push({ json: {\n    status: 'new', dry_run: dry, lead_id: leadId, created_at: today, name, email, phone: String(b.phone || '').trim(),\n    service, beds, baths, frequency: freq, zip, preferred_date: String(b.preferred_date || ''), notes: String(b.notes || '').slice(0, 500),\n    in_area: inArea ? 'yes' : 'no', est_low: inArea ? Math.round(low) : '', est_high: inArea ? Math.round(high) : '',\n    lead_status: inArea ? 'quoted' : 'out_of_area', customer_subject: subject, customer_html: html,\n    owner_subject: `${inArea ? 'New lead' : 'Out-of-area lead'}: ${name} (${service}, ${beds}bd/${baths}ba)`,\n    owner_html: `<p><strong>${esc(name)}</strong> - ${esc(email)} ${esc(b.phone || '')}</p><p>${esc(service)} / ${esc(freq)} / zip ${esc(zip)} / wants ${esc(b.preferred_date || 'no date given')}</p><p>Estimate sent: ${inArea ? money(low) + ' - ' + money(high) : 'none (out of area)'}</p><p>Notes: ${esc(b.notes || '-')}</p><p>Lead ID: ${esc(leadId)}</p>`,\n  } });\n}\nreturn out;\n"
+      },
+      "id": "a5a58853-c18d-580d-a226-e3c232b9a0e9",
+      "name": "Prepare Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "00e8aa23-cb48-5da6-b6dc-511ad74776c8",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "00e8aa23-cb48-5da6-b6dc-511ad74776c8",
+      "name": "Valid and New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status === \"unauthorized\" ? 401 : ($json.status === \"invalid\" ? 422 : 200) }}"
+        }
+      },
+      "id": "441219fc-9bd3-5b17-aff1-8b38bf9877be",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "30c8d0da-aa8e-5074-908d-716224dc2499",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "30c8d0da-aa8e-5074-908d-716224dc2499",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ dry_run: true, preview: $json }) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "5fddb657-c793-5f52-a9dd-44cc52befe24",
+      "name": "Respond: Dry Run Preview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Leads",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "lead_id": "={{ $json.lead_id }}",
+            "created_at": "={{ $json.created_at }}",
+            "name": "={{ $json.name }}",
+            "email": "={{ $json.email }}",
+            "phone": "={{ $json.phone }}",
+            "service": "={{ $json.service }}",
+            "beds": "={{ $json.beds }}",
+            "baths": "={{ $json.baths }}",
+            "frequency": "={{ $json.frequency }}",
+            "zip": "={{ $json.zip }}",
+            "preferred_date": "={{ $json.preferred_date }}",
+            "notes": "={{ $json.notes }}",
+            "in_area": "={{ $json.in_area }}",
+            "est_low": "={{ $json.est_low }}",
+            "est_high": "={{ $json.est_high }}",
+            "status": "={{ $json.lead_status }}",
+            "followups_stopped": "",
+            "fu1_sent": "",
+            "fu2_sent": ""
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "92fe2542-2a7e-54c3-b724-03770ba53a51",
+      "name": "Log Lead",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare Lead').first().json.email }}",
+        "subject": "={{ $('Prepare Lead').first().json.customer_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare Lead').first().json.customer_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "32a4ccef-ce65-5909-a04f-d9a44ab9a676",
+      "name": "Send Customer Reply",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "={{ $('Prepare Lead').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare Lead').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "cd1fce0c-92e3-5cbb-8549-befdafbf9200",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prepare Lead').first().json;\nreturn [{ json: { status: 'lead_recorded', lead_id: p.lead_id, in_area: p.in_area, estimate_low: p.est_low, estimate_high: p.est_high } }];\n"
+      },
+      "id": "c5e98699-2a5c-5772-8b16-bfdf925ab520",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "200"
+        }
+      },
+      "id": "95bd68c4-12e6-5fd3-8cb0-779a173643d4",
+      "name": "Respond: OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1800,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Lead": {
+      "main": [
+        [
+          {
+            "node": "Valid and New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Lead": {
+      "main": [
+        [
+          {
+            "node": "Send Customer Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Customer Reply": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fd38b012-4835-5589-9aab-efb0aa3fa683",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

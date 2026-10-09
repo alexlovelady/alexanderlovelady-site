@@ -1,0 +1,10 @@
+{
+  "deal_id": "D-1001",
+  "client_name": "Acme Dental",
+  "contact_name": "Jo Lee",
+  "contact_email": "jo@acme.test",
+  "package": "Growth",
+  "project_manager_email": "pm@youragency.com",
+  "project_manager_name": "Pat",
+  "kickoff_date": "2026-11-02"
+}
