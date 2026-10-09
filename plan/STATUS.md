@@ -18,7 +18,7 @@ Regenerate/test: `python3 products/cleaning-calculator/build.py`, `python3 n8n-p
 ## Needs YOU (Claude cannot do these)
 
 Order = by how directly it makes money.
-1. **Fiverr:** log in, publish profile + 4 gigs from `fiverr/FIVERR.md` (separate chat). Check live character limits and fees.
+1. ~~Fiverr: publish profile + 4 gigs~~ Done per you. Next: answer inquiries fast and log orders in `tracking/revenue-tracker.xlsx`.
 2. **Answer inquiries fast** and use the scope-gate checklist in `FIVERR.md` section 5.
 3. **Test the products in real tools:** open the BLANK calculator files in Excel and upload one to Google Sheets; for each n8n pack you plan to sell, import its workflows into your n8n, connect real Gmail/Sheets credentials, run one test row with `dry_run` false, and fix and rebuild (`python3 n8n-packs/build_packs.py`) if anything is off. Packs 5 (Stripe), 7 (Shopify) and 15 (AI) also need those accounts/keys.
 4. **Publish listings** (Etsy/Gumroad): copy from `products/cleaning-calculator/LISTING.md` and `n8n-packs/LISTING.md`. Check platform fees, add license text, record a demo.
@@ -29,7 +29,7 @@ Order = by how directly it makes money.
 
 ## Not done, and why
 - **Emergency Code Repair site:** the spec `emergency_code_repair_service.md` was not provided in this environment. Send it and it can be built. The plan itself says to skip it if it delays Fiverr.
-- **Fiverr demos (one per gig):** assigned to the separate Fiverr chat.
+- **Fiverr profile, gigs and demos:** done by you in the separate Fiverr chat (not verified from here).
 - **Firebase+Stripe SaaS starter and the other spreadsheet kits:** not built (long-horizon items in the plan).
 - **Selling all 20 n8n packs at once:** built because you asked, but the plan's own advice stands: list the 2-3 best first (CATALOG.md has a suggested order) and see what sells before spending time on listings, demos and support for all 20.
 - **Publishing anything / logging into any account:** requires you.
