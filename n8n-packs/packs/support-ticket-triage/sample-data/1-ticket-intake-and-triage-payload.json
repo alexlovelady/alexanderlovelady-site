@@ -1,0 +1,7 @@
+{
+  "name": "Casey Dunn",
+  "email": "casey@example.test",
+  "subject": "I was charged twice this month",
+  "message": "Hi, I see two charges for my subscription on my card. Please refund one.",
+  "channel": "Web form"
+}

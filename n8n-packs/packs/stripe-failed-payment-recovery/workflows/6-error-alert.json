@@ -1,0 +1,90 @@
+{
+  "id": "c822a729eb375a16",
+  "name": "StripeRecovery 6 - Error Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "e798c209-8148-52cd-ad77-98b2777b5350",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR COMPANY\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"billing_portal_url\": \"https://billing.stripe.com/p/login/YOUR-PORTAL-LINK\",\n  \"send_immediate_email\": true,\n  \"send_recovery_email\": true\n}",
+        "options": {}
+      },
+      "id": "aa1c2d78-d244-5f5b-b2fb-e5b6058cfc04",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "=n8n workflow failed: {{ $('Error Trigger').first().json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<p>Workflow <strong>{{ $('Error Trigger').first().json.workflow.name }}</strong> failed at node <strong>{{ $('Error Trigger').first().json.execution.lastNodeExecuted }}</strong>.</p><p>{{ $('Error Trigger').first().json.execution.error.message }}</p><p>Execution: {{ $('Error Trigger').first().json.execution.url }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "1d8fbf17-4a1a-5429-a64f-577dfae1534e",
+      "name": "Email Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Email Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "3516ec5e-f23a-57b4-94a2-ac45ab208a45",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

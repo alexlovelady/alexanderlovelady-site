@@ -1,6 +1,6 @@
 # Revenue Launch: Status and Next Actions
 
-**As of:** 2026-10-09. Goal: $2,000 net on top of $2,400 other income. Gross needed after a 20% platform fee: about $2,500. Payouts reportedly clear ~14 days after delivery, so cash must be *earned and delivered* by about Oct 18 to arrive before Nov 1.
+**As of:** 2026-10-09 (updated after building all 20 n8n packs). Goal: $2,000 net on top of $2,400 other income. Gross needed after a 20% platform fee: about $2,500. Payouts reportedly clear ~14 days after delivery, so cash must be *earned and delivered* by about Oct 18 to arrive before Nov 1.
 
 ## Built and verified by Claude
 
@@ -8,8 +8,7 @@
 |---|---|---|
 | Fiverr handoff (profile, 4 gigs, intake checklist) | `fiverr/FIVERR.md` | Character counts checked. Not published (human action). Being done in a separate chat. |
 | Cleaning Quote & Profit Calculator, 3 tiers x blank/example | `products/cleaning-calculator/` | LibreOffice recalculation: 0 formula errors, edge cases tested. NOT yet opened in real Excel / Google Sheets. |
-| n8n pack: Agency Client Onboarding (4 workflows) | `n8n-packs/agency-client-onboarding/` | 22 logic tests + real n8n 2.42.5 end-to-end run (dry-run and validation paths). Gmail/Sheets/Drive steps untested (no credentials). |
-| n8n pack: Cleaning Lead-to-Booking (5 workflows) | `n8n-packs/cleaning-lead-to-booking/` | Same. |
+| n8n packs: all 20 from the plan (116 workflows) | `n8n-packs/` (see `CATALOG.md`) | 252 automated logic tests; every node parameter checked against n8n's own node definitions; graph check on all 116 workflows; all 38 webhook workflows imported into a real n8n 2.42.5 and exercised in dry-run (`test/e2e.sh`). Gmail, Sheets, Drive, Calendar, Stripe, Shopify and Anthropic API steps NOT run against real accounts. |
 | Claude Code Repair Toolkit | `products/claude-code-repair-toolkit/` | 11 passing sample tests. Vendor-dashboard steps in guides are from knowledge, not re-verified live. |
 | Revenue tracking workbook (cash received vs goal, per-offer funnel, verdicts) | `tracking/revenue-tracker.xlsx` | LibreOffice recalculation, tested with sample orders. |
 | Tutorial post drafts | `marketing/tutorial-drafts.md` | Drafts only. |
@@ -21,7 +20,7 @@ Regenerate/test: `python3 products/cleaning-calculator/build.py`, `python3 n8n-p
 Order = by how directly it makes money.
 1. **Fiverr:** log in, publish profile + 4 gigs from `fiverr/FIVERR.md` (separate chat). Check live character limits and fees.
 2. **Answer inquiries fast** and use the scope-gate checklist in `FIVERR.md` section 5.
-3. **Test the products in real tools:** open the BLANK calculator files in Excel and upload one to Google Sheets; import the n8n workflows into your n8n with real Gmail/Sheets credentials and run with `dry_run` false; fix and rebuild if anything is off.
+3. **Test the products in real tools:** open the BLANK calculator files in Excel and upload one to Google Sheets; for each n8n pack you plan to sell, import its workflows into your n8n, connect real Gmail/Sheets credentials, run one test row with `dry_run` false, and fix and rebuild (`python3 n8n-packs/build_packs.py`) if anything is off. Packs 5 (Stripe), 7 (Shopify) and 15 (AI) also need those accounts/keys.
 4. **Publish listings** (Etsy/Gumroad): copy from `products/cleaning-calculator/LISTING.md` and `n8n-packs/LISTING.md`. Check platform fees, add license text, record a demo.
 5. **Record demo videos** (calculator, n8n dry-run, toolkit tests running).
 6. **Post tutorials** where allowed (`marketing/tutorial-drafts.md`), only after reading each community's rules.
@@ -31,7 +30,8 @@ Order = by how directly it makes money.
 ## Not done, and why
 - **Emergency Code Repair site:** the spec `emergency_code_repair_service.md` was not provided in this environment. Send it and it can be built. The plan itself says to skip it if it delays Fiverr.
 - **Fiverr demos (one per gig):** assigned to the separate Fiverr chat.
-- **Other 18 n8n packs, Firebase+Stripe SaaS starter, other spreadsheet kits:** deliberately not built. The plan says to wait for evidence of sales before building more.
+- **Firebase+Stripe SaaS starter and the other spreadsheet kits:** not built (long-horizon items in the plan).
+- **Selling all 20 n8n packs at once:** built because you asked, but the plan's own advice stands: list the 2-3 best first (CATALOG.md has a suggested order) and see what sells before spending time on listings, demos and support for all 20.
 - **Publishing anything / logging into any account:** requires you.
 
 ## Decision rules from the plan (use at Day 7 and Day 14)

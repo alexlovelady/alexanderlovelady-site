@@ -1,0 +1,565 @@
+{
+  "id": "907de93e43a15a27",
+  "name": "StripeRecovery 1 - Payment Failed",
+  "nodes": [
+    {
+      "parameters": {
+        "events": [
+          "invoice.payment_failed"
+        ]
+      },
+      "id": "d1dd0965-4aa5-5278-a688-75598400fbf8",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.stripeTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Connect your Stripe credential. n8n verifies Stripe's webhook signature for you. Use TEST mode first."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR COMPANY\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"billing_portal_url\": \"https://billing.stripe.com/p/login/YOUR-PORTAL-LINK\",\n  \"send_immediate_email\": true,\n  \"send_recovery_email\": true,\n  \"flow\": {\n    \"email\": {\n      \"subject\": \"Action needed: your payment for {{business_name}} didn't go through\",\n      \"body\": \"Hi {{first_name}},\\n\\nWe couldn't process your latest payment of {{amount_display}} for {{business_name}}. This is usually an expired card or a bank block, and it's easy to fix.\\n\\nUpdate your payment method here: {{billing_portal_url}}\\nOr pay this invoice directly: {{hosted_invoice_url}}\\n\\nIf you've already fixed it, thank you. Questions? Just reply.\\n\\n{{business_name}}\"\n    },\n    \"owner\": {\n      \"subject\": \"Payment failed: {{name}} ({{amount_display}}, attempt {{attempt_count}})\",\n      \"body\": \"{{name}} ({{email}}) had a failed payment of {{amount_display}}.\\n\\nInvoice: {{hosted_invoice_url}}\\n\\nThey were emailed an update link. Follow-ups run automatically while the invoice is unpaid.\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "b5abf3e7-e5bc-5121-9418-b244ea9325cc",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FailedPayments",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "47eb0a21-24ed-502e-b1eb-f20f9980e7bd",
+      "name": "Read Failed Payments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// Stripe invoice.payment_failed -> normalized row. First failure for an invoice = \"new\" (log + email), later retries = \"existing\" (just bump attempt_count).\nconst store = $getWorkflowStaticData('global');\nconst ZERO = ['bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw', 'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf'];\nconst known = new Set($('Read Failed Payments').all().map(i => i.json.invoice_id).filter(Boolean));\nconst out = [];\nfor (const it of $('Trigger').all()) {\n  const dry = cfg.dry_run === true;\n  const ev = it.json.data && it.json.data.object ? it.json : (it.json.body || it.json);\n  const inv = ev && ev.data && ev.data.object;\n  if (!inv || ev.type !== 'invoice.payment_failed' || !inv.id) { out.push({ json: { status: 'ignored', dry_run: dry } }); continue; }\n  if (ev.id && isSeen(store, 'evt|' + ev.id)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry && ev.id) markSeen(store, 'evt|' + ev.id);\n  const cur = String(inv.currency || 'usd').toLowerCase();\n  const major = ZERO.includes(cur) ? Number(inv.amount_due || 0) : Number(inv.amount_due || 0) / 100;\n  const display = (cur === 'usd' ? '$' : '') + major.toFixed(ZERO.includes(cur) ? 0 : 2) + (cur === 'usd' ? '' : ' ' + cur.toUpperCase());\n  const email = lc(inv.customer_email);\n  const attempt = Number(inv.attempt_count || 1);\n  if (known.has(inv.id)) {\n    out.push({ json: { status: 'existing', dry_run: dry, id: inv.id, row: { invoice_id: inv.id, attempt_count: attempt } } });\n    continue;\n  }\n  const ctx = { first_name: String(inv.customer_name || '').trim().split(/\\s+/)[0] || 'there', amount_display: display, hosted_invoice_url: inv.hosted_invoice_url || '', attempt_count: attempt };\n  const sendNow = cfg.send_immediate_email !== false && isEmail(email);\n  out.push({ json: {\n    status: 'new', dry_run: dry, id: inv.id,\n    row: { invoice_id: inv.id, customer_id: inv.customer || '', email, name: inv.customer_name || '', amount: major, amount_display: display, currency: cur,\n           attempt_count: attempt, failed_at: today, hosted_invoice_url: inv.hosted_invoice_url || '', subscription_id: inv.subscription || '', status: 'open',\n           d0_sent: sendNow ? 'yes' : '', opted_out: '' },\n    mail_to: sendNow ? email : '', mail_subject: renderText(flow.email.subject, ctx), mail_html: render(flow.email.body, ctx),\n    owner_to: cfg.owner_email, owner_subject: renderText(flow.owner.subject, { ...ctx, name: inv.customer_name || email }),\n    owner_html: render(flow.owner.body, { ...ctx, name: inv.customer_name || email, email }),\n  } });\n}\nreturn out;\n"
+      },
+      "id": "42ee4390-44b7-52d6-a067-b487b6a95cfe",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "2d532370-c30a-5799-b52e-da7eefaf0b11",
+      "name": "Dry Run Preview",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "00d82e86-9989-50af-9bcb-9ce87ec097f6",
+      "name": "Ignored",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "982276d1-0e81-5fda-a5b9-5285d4fe0b0a",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "982276d1-0e81-5fda-a5b9-5285d4fe0b0a",
+      "name": "Is new?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6f7f4a4f-9b1b-5d50-a7da-0330ffaa3ab5",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6f7f4a4f-9b1b-5d50-a7da-0330ffaa3ab5",
+      "name": "Dry Run? (new)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FailedPayments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "invoice_id": "={{ $('Prepare').first().json.row[\"invoice_id\"] }}",
+            "customer_id": "={{ $('Prepare').first().json.row[\"customer_id\"] }}",
+            "email": "={{ $('Prepare').first().json.row[\"email\"] }}",
+            "name": "={{ $('Prepare').first().json.row[\"name\"] }}",
+            "amount": "={{ $('Prepare').first().json.row[\"amount\"] }}",
+            "amount_display": "={{ $('Prepare').first().json.row[\"amount_display\"] }}",
+            "currency": "={{ $('Prepare').first().json.row[\"currency\"] }}",
+            "attempt_count": "={{ $('Prepare').first().json.row[\"attempt_count\"] }}",
+            "failed_at": "={{ $('Prepare').first().json.row[\"failed_at\"] }}",
+            "hosted_invoice_url": "={{ $('Prepare').first().json.row[\"hosted_invoice_url\"] }}",
+            "subscription_id": "={{ $('Prepare').first().json.row[\"subscription_id\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "d0_sent": "={{ $('Prepare').first().json.row[\"d0_sent\"] }}",
+            "opted_out": "={{ $('Prepare').first().json.row[\"opted_out\"] }}"
+          },
+          "matchingColumns": [
+            "invoice_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "8922a46e-e0e9-532e-8485-49a187b900a3",
+      "name": "Log Failure",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        -100
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3a39329f-f58c-5357-94e4-86471a51ad3d",
+              "leftValue": "={{ String(!!$('Prepare').first().json.mail_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3a39329f-f58c-5357-94e4-86471a51ad3d",
+      "name": "If Email Customer",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.mail_to }}",
+        "subject": "={{ $('Prepare').first().json.mail_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.mail_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "308d1a5f-4351-5b98-b40e-283b9fe9bc4d",
+      "name": "Email Customer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "addc4a27-81b3-55fd-84d7-fa1960b5c89c",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "30bba163-7a76-5c60-8b2d-b2ae70fe64f3",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "existing",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "30bba163-7a76-5c60-8b2d-b2ae70fe64f3",
+      "name": "Is existing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        350
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b0fc41b4-059a-5da2-967f-83832e1aa496",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b0fc41b4-059a-5da2-967f-83832e1aa496",
+      "name": "Dry Run? (existing)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        250
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FailedPayments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "invoice_id": "={{ $('Prepare').first().json.row[\"invoice_id\"] }}",
+            "attempt_count": "={{ $('Prepare').first().json.row[\"attempt_count\"] }}"
+          },
+          "matchingColumns": [
+            "invoice_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "4420d270-7311-5f7b-9dd1-f56cd188be35",
+      "name": "Update Attempt Count",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        250
+      ],
+      "notes": "Connect your Google Sheets credential."
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Failed Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Failed Payments": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Is new?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is new?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run? (new)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is existing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run? (new)": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Failure": {
+      "main": [
+        [
+          {
+            "node": "If Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Email Customer": {
+      "main": [
+        [
+          {
+            "node": "Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Customer": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is existing?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run? (existing)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run? (existing)": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Attempt Count",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0b30211f-75a8-517f-96f2-31adc168bf0b",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

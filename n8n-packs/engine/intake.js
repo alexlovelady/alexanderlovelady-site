@@ -27,11 +27,20 @@ for (const item of $('Webhook').all()) {
   if (flow.escalate && match(flow.escalate.when, ctx)) ownerTo = get(cfg, flow.escalate.to_cfg) || ownerTo;
   ctx.route_email = ownerTo; ctx.id = id;
   if (flow.route && flow.route.store_col) row[flow.route.store_col] = ownerTo;
+  if (flow.sla) {
+    const h = Number((get(cfg, flow.sla.hours_cfg) || {})[lc(row[flow.sla.by])] ?? (get(cfg, flow.sla.hours_cfg) || {}).default ?? 24);
+    row[flow.sla.col] = new Date(Date.now() + h * 3600000).toISOString().slice(0, 16) + 'Z';
+    row[flow.sla.date_col] = addDays(today, Math.floor(h / 24));
+    ctx[flow.sla.col] = row[flow.sla.col]; ctx.sla_hours = h; ctx[flow.sla.date_col] = row[flow.sla.date_col];
+  }
+  let draft = null;
+  if (flow.drafts) { const d = flow.drafts[lc(row[flow.drafts_by || 'category'])] || flow.drafts.default; if (d) draft = d; }
   const ack = (ackKey && flow.acks && flow.acks[ackKey]) || flow.ack;
   out.push({ json: {
     status: 'new', dry_run: dry, id, variant: ackKey || '', row,
     ack_to: ack ? String(v[ack.to || 'email'] || '') : '', ack_subject: ack ? renderText(ack.subject, ctx) : '',
     ack_html: ack ? withFooter(render(ack.body, ctx), ack.marketing) : '',
+    draft_to: draft ? String(v[draft.to || 'email'] || '') : '', draft_subject: draft ? renderText(draft.subject, ctx) : '', draft_html: draft ? render(draft.body, ctx) : '',
     owner_to: ownerTo, owner_subject: flow.owner ? renderText(flow.owner.subject, ctx) : '', owner_html: flow.owner ? render(flow.owner.body, ctx) : '',
   } });
 }

@@ -1,0 +1,822 @@
+{
+  "id": "c003dda27e2b5299",
+  "name": "Incident 2 - Automation Error Collector",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "15857f1c-63e5-567d-b622-e8535cbe29f6",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Set THIS workflow as the Error Workflow of the workflows you want to monitor."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR AGENCY\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"oncall_email\": \"oncall@example.com\",\n  \"default_severity\": \"major\",\n  \"suppress_minutes\": 30,\n  \"reminder_minutes\": 60,\n  \"severity_rules\": [\n    {\n      \"contains_any\": [\n        \"checkout\",\n        \"payment\",\n        \"api\"\n      ],\n      \"severity\": \"critical\"\n    },\n    {\n      \"contains_any\": [\n        \"blog\",\n        \"docs\"\n      ],\n      \"severity\": \"minor\"\n    }\n  ],\n  \"clients\": {\n    \"Client A website\": \"client-a@example.com\"\n  },\n  \"flow\": {\n    \"open\": {\n      \"subject\": \"[{{severity}}] DOWN: {{monitor}}\",\n      \"body\": \"{{monitor}} is DOWN.\\n\\nSeverity: {{severity}}\\nURL: {{url}}\\nDetails: {{message}}\\n\\nRepeat alerts are suppressed. You'll get a reminder if it stays down and a message when it recovers.\"\n    },\n    \"reminder\": {\n      \"subject\": \"[{{severity}}] STILL DOWN ({{minutes}} min): {{monitor}}\",\n      \"body\": \"{{monitor}} has been down for about {{minutes}} minutes.\\n\\nURL: {{url}}\\nDetails: {{message}}\"\n    },\n    \"resolved\": {\n      \"subject\": \"RESOLVED: {{monitor}} (down {{minutes}} min)\",\n      \"body\": \"{{monitor}} is back up after about {{minutes}} minutes.\"\n    },\n    \"error\": {\n      \"subject\": \"[{{severity}}] Automation error: {{monitor}}\",\n      \"body\": \"{{monitor}} failed.\\n\\n{{message}}\\n\\nExecution: {{url}}\\n\\nSimilar errors suppressed since the last alert: {{suppressed}}.\"\n    },\n    \"client_open\": {\n      \"subject\": \"We're aware of an issue with {{monitor}}\",\n      \"body\": \"Hello,\\n\\nWe've detected an issue affecting {{monitor}} and are working on it. We'll update you when it's resolved.\\n\\n[ADD YOUR NAME]\"\n    },\n    \"client_resolved\": {\n      \"subject\": \"Resolved: {{monitor}}\",\n      \"body\": \"Hello,\\n\\nThe issue affecting {{monitor}} has been resolved (about {{minutes}} minutes). Please let us know if you still see problems.\\n\\n[ADD YOUR NAME]\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "30b8ffe3-b0cf-5616-8c6f-7f423bf3b340",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// Incident logic: groups repeated alerts into one incident, alerts once, reminds periodically, and closes on recovery.\n// Accepts uptime-monitor webhooks (status down/up, or common synonyms) and n8n Error Trigger payloads (status error).\nconst store = $getWorkflowStaticData('global');\nstore.incidents = store.incidents || {}; store.errors = store.errors || {};\nconst DOWN = ['down', 'offline', 'failed', 'failure', 'critical', 'started', 'triggered', 'alert', 'firing', '1'];\nconst UP = ['up', 'online', 'recovered', 'resolved', 'ok', 'healthy', '2'];\nconst now = Number(cfg.now_override || Date.now());\nconst mins = Number;\nconst out = [];\nfor (const it of $('Trigger').all()) {\n  const dry = cfg.dry_run === true;\n  const j = it.json;\n  let monitor, status, message, url, sev, isErr = false;\n  if (j.workflow && j.execution) { isErr = true; monitor = j.workflow.name; status = 'error'; message = (j.execution.error && j.execution.error.message) || 'workflow failed'; url = j.execution.url || ''; }\n  else {\n    if (authFails(it)) { out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue; }\n    const b = j.body || {};\n    monitor = String(b.monitor || b.monitorFriendlyName || b.name || '').trim();\n    const raw = lc(b.status ?? b.alertType ?? b.state ?? '');\n    status = DOWN.includes(raw) ? 'down' : UP.includes(raw) ? 'up' : raw === 'error' ? 'error' : '';\n    message = String(b.message || b.alertDetails || b.error || '').slice(0, 500); url = String(b.url || b.monitorURL || '').slice(0, 300); sev = lc(b.severity);\n    const errs = []; if (!monitor) errs.push('missing monitor'); if (!status) errs.push('status must be down, up or error (got \"' + raw + '\")');\n    if (errs.length) { out.push({ json: { status: 'invalid', errors: errs, dry_run: dry } }); continue; }\n    isErr = status === 'error';\n  }\n  if (!['critical', 'major', 'minor'].includes(sev || '')) {\n    sev = cfg.default_severity || 'major';\n    for (const r of cfg.severity_rules || []) if ((r.contains_any || []).some(w => lc(monitor).includes(lc(w)))) { sev = r.severity; break; }\n  }\n  const clientEmail = (cfg.clients || {})[monitor] || '';\n  const base = { dry_run: dry, monitor, severity: sev, message, url };\n  const ctx = { monitor, severity: sev, message: message || 'no details', url: url || '(none)', today, client_email: clientEmail };\n  const alertTo = sev === 'critical' && cfg.oncall_email ? cfg.oncall_email : cfg.owner_email;\n  const mk = (action, extra) => ({ json: { ...base, status: 'new', action, owner_to: alertTo, ...extra } });\n  if (isErr) {\n    const last = store.errors[monitor];\n    if (!last || now - last.t >= mins(cfg.suppress_minutes ?? 30) * 60000) {\n      const n = last ? last.n : 0;\n      const id = newId('INC');\n      if (!dry) store.errors[monitor] = { t: now, n: 0 };\n      out.push(mk('error_alert', { id, row: { incident_id: id, monitor, client: clientEmail, url, severity: sev, status: 'logged', opened_at: today, message, alerts_sent: 1 },\n        owner_subject: renderText(flow.error.subject, { ...ctx, suppressed: n }), owner_html: render(flow.error.body, { ...ctx, suppressed: n }) }));\n    } else { if (!dry) last.n++; out.push({ json: { ...base, status: 'suppressed', action: 'none' } }); }\n    continue;\n  }\n  const inc = store.incidents[monitor];\n  if (status === 'down') {\n    if (!inc) {\n      const id = newId('INC');\n      if (!dry) store.incidents[monitor] = { id, opened: now, last_alert: now, count: 1 };\n      out.push(mk('open', { id, row: { incident_id: id, monitor, client: clientEmail, url, severity: sev, status: 'open', opened_at: today, message, closed_at: '', duration_min: '', alerts_sent: 1 },\n        owner_subject: renderText(flow.open.subject, ctx), owner_html: render(flow.open.body, ctx),\n        draft_to: clientEmail, draft_subject: clientEmail ? renderText(flow.client_open.subject, ctx) : '', draft_html: clientEmail ? render(flow.client_open.body, ctx) : '' }));\n    } else {\n      inc.count++;\n      if (now - inc.last_alert >= mins(cfg.reminder_minutes ?? 60) * 60000) {\n        const dur = Math.round((now - inc.opened) / 60000);\n        if (!dry) inc.last_alert = now;\n        out.push(mk('reminder', { id: inc.id, owner_subject: renderText(flow.reminder.subject, { ...ctx, minutes: dur }), owner_html: render(flow.reminder.body, { ...ctx, minutes: dur }) }));\n      } else out.push({ json: { ...base, status: 'suppressed', action: 'none' } });\n    }\n  } else if (status === 'up') {\n    if (!inc) { out.push({ json: { ...base, status: 'ignored', action: 'none' } }); continue; }\n    const dur = Math.round((now - inc.opened) / 60000);\n    if (!dry) delete store.incidents[monitor];\n    out.push(mk('resolve', { id: inc.id, row: { incident_id: inc.id, status: 'resolved', closed_at: today, duration_min: dur },\n      owner_subject: renderText(flow.resolved.subject, { ...ctx, minutes: dur }), owner_html: render(flow.resolved.body, { ...ctx, minutes: dur }),\n      draft_to: clientEmail, draft_subject: clientEmail ? renderText(flow.client_resolved.subject, { ...ctx, minutes: dur }) : '', draft_html: clientEmail ? render(flow.client_resolved.body, { ...ctx, minutes: dur }) : '' }));\n  }\n}\nreturn out;\n"
+      },
+      "id": "933c7504-87c3-51f9-882c-1be362417448",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f278b8e0-7131-588c-b064-efa04dc84831",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f278b8e0-7131-588c-b064-efa04dc84831",
+      "name": "New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "85118dff-0719-5552-bbc7-d627e1e4c7f3",
+      "name": "Dry Run Preview",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1000,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6a33e7b4-3e72-5dcb-8469-4942ce650452",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "6a33e7b4-3e72-5dcb-8469-4942ce650452",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "dcf79648-3832-52dd-91c4-9fcf4f3f6959",
+      "name": "Done",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4bd62d2f-6cca-5bcc-aa16-34adc3a14bea",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "open",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4bd62d2f-6cca-5bcc-aa16-34adc3a14bea",
+      "name": "Is Open?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Incidents",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "incident_id": "={{ $('Prepare').first().json.row[\"incident_id\"] }}",
+            "monitor": "={{ $('Prepare').first().json.row[\"monitor\"] }}",
+            "client": "={{ $('Prepare').first().json.row[\"client\"] }}",
+            "url": "={{ $('Prepare').first().json.row[\"url\"] }}",
+            "severity": "={{ $('Prepare').first().json.row[\"severity\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "opened_at": "={{ $('Prepare').first().json.row[\"opened_at\"] }}",
+            "message": "={{ $('Prepare').first().json.row[\"message\"] }}",
+            "closed_at": "={{ $('Prepare').first().json.row[\"closed_at\"] }}",
+            "duration_min": "={{ $('Prepare').first().json.row[\"duration_min\"] }}",
+            "alerts_sent": "={{ $('Prepare').first().json.row[\"alerts_sent\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "e842dff6-76ee-5c1b-8b53-a74aaceb9708",
+      "name": "Log Incident",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        -100
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "082b1e4a-35bc-59a1-8c26-5918ea87f7da",
+      "name": "Notify Owner (Open)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c47db6c3-68eb-55e2-9159-791576ff37eb",
+              "leftValue": "={{ String(!!$('Prepare').first().json.draft_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c47db6c3-68eb-55e2-9159-791576ff37eb",
+      "name": "If Client Draft (Open)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "={{ $('Prepare').first().json.draft_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.draft_html }}",
+        "options": {
+          "sendTo": "={{ $('Prepare').first().json.draft_to }}"
+        }
+      },
+      "id": "edf8ba9f-9465-5021-a207-b83a5f184229",
+      "name": "Draft Client Notice",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        -100
+      ],
+      "notes": "DRAFT for you to review and send."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2e583c82-5643-5c91-aedd-b6241c18de08",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "resolve",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2e583c82-5643-5c91-aedd-b6241c18de08",
+      "name": "Is Resolve?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Incidents",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "incident_id": "={{ $('Prepare').first().json.row[\"incident_id\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "closed_at": "={{ $('Prepare').first().json.row[\"closed_at\"] }}",
+            "duration_min": "={{ $('Prepare').first().json.row[\"duration_min\"] }}"
+          },
+          "matchingColumns": [
+            "incident_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "dfc024ee-36f4-53c8-b456-ed30bc97c24c",
+      "name": "Close Incident",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1400,
+        200
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "db98b41a-8888-57c2-9fe8-17811161c8b0",
+      "name": "Notify Owner (Resolved)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        200
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "24e4abdd-cd1f-5036-a4c5-bbe92e72aff9",
+              "leftValue": "={{ String(!!$('Prepare').first().json.draft_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "24e4abdd-cd1f-5036-a4c5-bbe92e72aff9",
+      "name": "If Client Draft (Resolved)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1800,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "draft",
+        "operation": "create",
+        "subject": "={{ $('Prepare').first().json.draft_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.draft_html }}",
+        "options": {
+          "sendTo": "={{ $('Prepare').first().json.draft_to }}"
+        }
+      },
+      "id": "6a671d5b-4904-5059-94c1-4dfa0af41c4f",
+      "name": "Draft Resolved Notice",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2000,
+        200
+      ],
+      "notes": "DRAFT for you to review and send."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "3dfab0a2-66cb-502e-a519-0d4c99acc0ba",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "error_alert",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "3dfab0a2-66cb-502e-a519-0d4c99acc0ba",
+      "name": "Is Error Alert?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Incidents",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "incident_id": "={{ $('Prepare').first().json.row[\"incident_id\"] }}",
+            "monitor": "={{ $('Prepare').first().json.row[\"monitor\"] }}",
+            "client": "={{ $('Prepare').first().json.row[\"client\"] }}",
+            "url": "={{ $('Prepare').first().json.row[\"url\"] }}",
+            "severity": "={{ $('Prepare').first().json.row[\"severity\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "opened_at": "={{ $('Prepare').first().json.row[\"opened_at\"] }}",
+            "message": "={{ $('Prepare').first().json.row[\"message\"] }}",
+            "alerts_sent": "={{ $('Prepare').first().json.row[\"alerts_sent\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "08d48627-22eb-5c61-9052-8af85e165451",
+      "name": "Log Error Incident",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1600,
+        450
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c280b177-c575-585a-8c32-0d5e95b1e7ca",
+      "name": "Notify Owner (Error)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        450
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "4236aea3-79b4-5f68-bbe3-e02b93158210",
+      "name": "Notify Owner (Reminder)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        650
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Open?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Open?": {
+      "main": [
+        [
+          {
+            "node": "Log Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Resolve?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Incident": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner (Open)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner (Open)": {
+      "main": [
+        [
+          {
+            "node": "If Client Draft (Open)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Client Draft (Open)": {
+      "main": [
+        [
+          {
+            "node": "Draft Client Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Client Notice": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Resolve?": {
+      "main": [
+        [
+          {
+            "node": "Close Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Is Error Alert?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Close Incident": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner (Resolved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner (Resolved)": {
+      "main": [
+        [
+          {
+            "node": "If Client Draft (Resolved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Client Draft (Resolved)": {
+      "main": [
+        [
+          {
+            "node": "Draft Resolved Notice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Draft Resolved Notice": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Error Alert?": {
+      "main": [
+        [
+          {
+            "node": "Log Error Incident",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Owner (Reminder)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error Incident": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner (Error)": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner (Reminder)": {
+      "main": [
+        [
+          {
+            "node": "Done",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "243bc04d-9c38-5e77-aa27-fccc0ff0f008",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,9 @@
+{
+  "order_number": "#1042",
+  "name": "Dana Cole",
+  "email": "dana@example.test",
+  "item": "Ceramic mug",
+  "reason": "Damaged",
+  "resolution": "Refund",
+  "note": "Handle broke in shipping."
+}

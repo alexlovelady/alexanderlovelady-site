@@ -1,0 +1,343 @@
+{
+  "id": "eb96f2fc48595112",
+  "name": "Shopify 1 - New Order Alert And Log",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "topic": "orders/create"
+      },
+      "id": "19186122-e523-5566-ba2e-9c6035bd5ca2",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.shopifyTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Connect your Shopify Access Token credential (custom app with read_orders)."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR STORE\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"\",\n  \"high_value_threshold\": 250,\n  \"notify_every_order\": true,\n  \"send_shipping_email\": true,\n  \"low_stock_threshold\": 5,\n  \"review_link\": \"https://example.com/review\",\n  \"returns_policy_url\": \"https://example.com/returns\",\n  \"flow\": {\n    \"owner\": {\n      \"subject\": \"{{flag}}New order {{order_number}}: {{total}}\",\n      \"body\": \"{{name}} ({{email}}) ordered {{items}}.\\n\\nTotal: {{total}} ({{financial_status}})\\nShip to: {{ship_to}}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "acb73396-cdb5-5301-8d12-ad9256fa71ae",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// Shopify orders/create -> Orders row + optional owner alert (always, or only for high-value orders).\nconst store = $getWorkflowStaticData('global');\nconst out = [];\nfor (const it of $('Trigger').all()) {\n  const dry = cfg.dry_run === true;\n  const o = it.json.body && it.json.body.id ? it.json.body : it.json;\n  if (!o || !o.id) { out.push({ json: { status: 'ignored', dry_run: dry } }); continue; }\n  const key = 'ord|' + o.id;\n  if (isSeen(store, key)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry) markSeen(store, key);\n  const total = parseFloat(o.total_price) || 0;\n  const items = (o.line_items || []).slice(0, 5).map(l => `${l.quantity || 1} x ${l.title}`).join('; ') + ((o.line_items || []).length > 5 ? '; ...' : '');\n  const cust = o.customer || {};\n  const name = [cust.first_name, cust.last_name].filter(Boolean).join(' ') || (o.billing_address && o.billing_address.name) || '';\n  const ship = o.shipping_address ? [o.shipping_address.city, o.shipping_address.country_code].filter(Boolean).join(', ') : '';\n  const high = total >= Number(cfg.high_value_threshold || Infinity);\n  const ctx = { order_number: o.name || o.order_number, name: name || 'a customer', total: fmtMoney(total) + ' ' + String(o.currency || ''), items, ship_to: ship, financial_status: o.financial_status || '', email: lc(o.email), flag: high ? 'HIGH VALUE ' : '' };\n  const notify = cfg.notify_every_order !== false || high;\n  out.push({ json: {\n    status: 'new', dry_run: dry, id: String(o.id),\n    row: { order_id: String(o.id), order_number: o.name || String(o.order_number || ''), email: lc(o.email), name, total_price: total, currency: o.currency || '', items, ship_to: ship,\n           financial_status: o.financial_status || '', status: 'new', created_at: ymdOf(o.created_at) || today, fulfilled_at: '', tracking: '', opted_out: '' },\n    owner_to: notify ? cfg.owner_email : '', owner_subject: renderText(flow.owner.subject, ctx), owner_html: render(flow.owner.body, ctx),\n  } });\n}\nreturn out;\n"
+      },
+      "id": "94b4defe-b54d-5f40-9ac9-c74b228d6e54",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c696adb1-7913-5831-adcf-dbf11394d999",
+      "name": "Dry Run Preview",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        -300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f6a3ba3d-3650-5890-9f21-c555101e8f38",
+      "name": "Ignored",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "18993fd8-fdf3-52e8-abd4-71db99d6148e",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "18993fd8-fdf3-52e8-abd4-71db99d6148e",
+      "name": "Is new?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "970c5fc8-7ffb-5310-9f61-fc2981a8fbbb",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "970c5fc8-7ffb-5310-9f61-fc2981a8fbbb",
+      "name": "Dry Run? (new)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $('Prepare').first().json.row[\"order_id\"] }}",
+            "order_number": "={{ $('Prepare').first().json.row[\"order_number\"] }}",
+            "email": "={{ $('Prepare').first().json.row[\"email\"] }}",
+            "name": "={{ $('Prepare').first().json.row[\"name\"] }}",
+            "total_price": "={{ $('Prepare').first().json.row[\"total_price\"] }}",
+            "currency": "={{ $('Prepare').first().json.row[\"currency\"] }}",
+            "items": "={{ $('Prepare').first().json.row[\"items\"] }}",
+            "ship_to": "={{ $('Prepare').first().json.row[\"ship_to\"] }}",
+            "financial_status": "={{ $('Prepare').first().json.row[\"financial_status\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "created_at": "={{ $('Prepare').first().json.row[\"created_at\"] }}"
+          },
+          "matchingColumns": [
+            "order_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "d27d6268-2769-5078-bb6c-4c899c9860a2",
+      "name": "Log Order",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        -100
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1141250-81d8-5040-8331-14c78d745f49",
+              "leftValue": "={{ String(!!$('Prepare').first().json.owner_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1141250-81d8-5040-8331-14c78d745f49",
+      "name": "If Notify Owner",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "aa243c8e-3672-56cd-8200-53b698da4856",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Is new?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is new?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run? (new)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run? (new)": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Order",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Order": {
+      "main": [
+        [
+          {
+            "node": "If Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Notify Owner": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6aa227e8-ba05-5fbc-94eb-407d02f2065d",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

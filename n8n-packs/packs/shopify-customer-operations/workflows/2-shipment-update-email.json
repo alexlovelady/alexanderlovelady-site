@@ -1,0 +1,336 @@
+{
+  "id": "ed9809217e075684",
+  "name": "Shopify 2 - Shipment Update Email",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "accessToken",
+        "topic": "orders/fulfilled"
+      },
+      "id": "a8c04d8d-e997-5227-bdf9-053f3af0122b",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.shopifyTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Connect your Shopify Access Token credential."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR STORE\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"\",\n  \"high_value_threshold\": 250,\n  \"notify_every_order\": true,\n  \"send_shipping_email\": true,\n  \"low_stock_threshold\": 5,\n  \"review_link\": \"https://example.com/review\",\n  \"returns_policy_url\": \"https://example.com/returns\",\n  \"flow\": {\n    \"email\": {\n      \"subject\": \"Your order {{order_number}} has shipped\",\n      \"body\": \"Hi {{first_name}},\\n\\nGood news: your order {{order_number}} is on its way.\\n\\nTracking: {{tracking}}\\n{{tracking_urls}}\\n\\nQuestions? Reply to this email.\\n\\n{{business_name}}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "a7d8abf6-a02e-59d7-a640-b4d5396f65f7",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// Shopify orders/fulfilled -> mark the order fulfilled and (optionally) email the customer their tracking info.\nconst store = $getWorkflowStaticData('global');\nconst out = [];\nfor (const it of $('Trigger').all()) {\n  const dry = cfg.dry_run === true;\n  const o = it.json.body && it.json.body.id ? it.json.body : it.json;\n  if (!o || !o.id) { out.push({ json: { status: 'ignored', dry_run: dry } }); continue; }\n  const key = 'ful|' + o.id;\n  if (isSeen(store, key)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry) markSeen(store, key);\n  const f = (o.fulfillments || []).filter(x => x && (x.tracking_number || x.tracking_url));\n  const tracking = f.map(x => [x.tracking_company, x.tracking_number].filter(Boolean).join(' ')).filter(Boolean).join(', ');\n  const urls = f.map(x => x.tracking_url).filter(Boolean).join('\\n');\n  const cust = o.customer || {};\n  const email = lc(o.email);\n  const ctx = { first_name: cust.first_name || 'there', order_number: o.name || o.order_number, tracking: tracking || 'no tracking number provided', tracking_urls: urls, email };\n  const send = cfg.send_shipping_email !== false && isEmail(email);\n  out.push({ json: {\n    status: 'new', dry_run: dry, id: String(o.id),\n    row: { order_id: String(o.id), status: 'fulfilled', fulfilled_at: today, tracking },\n    mail_to: send ? email : '', mail_subject: renderText(flow.email.subject, ctx), mail_html: render(flow.email.body, ctx),\n  } });\n}\nreturn out;\n"
+      },
+      "id": "e8d1e8a9-879f-58b3-8204-620a3e9d998b",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d7dcf1af-d985-5f9a-8f7a-e32193e3aa3d",
+      "name": "Dry Run Preview",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        -300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "778295c8-c26b-531a-b20f-cd9da0edf26c",
+      "name": "Ignored",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f3cf308f-d360-5427-ac64-48f830586667",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f3cf308f-d360-5427-ac64-48f830586667",
+      "name": "Is new?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d5227588-cf85-5d59-b62f-ebfbe01d4c3c",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d5227588-cf85-5d59-b62f-ebfbe01d4c3c",
+      "name": "Dry Run? (new)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Orders",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "order_id": "={{ $('Prepare').first().json.row[\"order_id\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "fulfilled_at": "={{ $('Prepare').first().json.row[\"fulfilled_at\"] }}",
+            "tracking": "={{ $('Prepare').first().json.row[\"tracking\"] }}"
+          },
+          "matchingColumns": [
+            "order_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "091f84b1-43f3-518e-8e24-c77c07a9f3ca",
+      "name": "Mark Fulfilled",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        -100
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2e243275-ca59-524c-bda3-96dd02884a5c",
+              "leftValue": "={{ String(!!$('Prepare').first().json.mail_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2e243275-ca59-524c-bda3-96dd02884a5c",
+      "name": "If Email Customer",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1200,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.mail_to }}",
+        "subject": "={{ $('Prepare').first().json.mail_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.mail_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "59c9e347-1859-58e2-88a0-f452b42e17d9",
+      "name": "Email Customer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Is new?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is new?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run? (new)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run? (new)": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Fulfilled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Fulfilled": {
+      "main": [
+        [
+          {
+            "node": "If Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Email Customer": {
+      "main": [
+        [
+          {
+            "node": "Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b777c74c-0c54-50fb-a8ac-e507fbfe6178",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

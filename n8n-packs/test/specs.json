@@ -1320,6 +1320,483 @@
   }
  },
  {
+  "slug": "stripe-failed-payment-recovery",
+  "cfg": {
+   "business_name": "YOUR COMPANY",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "billing_portal_url": "https://billing.stripe.com/p/login/YOUR-PORTAL-LINK",
+   "send_immediate_email": true,
+   "send_recovery_email": true
+  },
+  "flows": [
+   {
+    "id": "failed",
+    "kind": "trigger",
+    "title": "Payment Failed",
+    "lite": true,
+    "trigger": {
+     "type": "n8n-nodes-base.stripeTrigger",
+     "ver": 1,
+     "params": {
+      "events": [
+       "invoice.payment_failed"
+      ]
+     },
+     "note": "Connect your Stripe credential. n8n verifies Stripe's webhook signature for you. Use TEST mode first."
+    },
+    "read_sheet": "FailedPayments",
+    "read_node": "Read Failed Payments",
+    "js": "stripe_failed.js",
+    "ctx_keys": [
+     "first_name",
+     "amount_display",
+     "hosted_invoice_url",
+     "attempt_count",
+     "name",
+     "email",
+     "billing_portal_url"
+    ],
+    "columns": {
+     "FailedPayments": [
+      "invoice_id",
+      "customer_id",
+      "email",
+      "name",
+      "amount",
+      "amount_display",
+      "currency",
+      "attempt_count",
+      "failed_at",
+      "hosted_invoice_url",
+      "subscription_id",
+      "status",
+      "d0_sent",
+      "d1_sent",
+      "d2_sent",
+      "d3_sent",
+      "recovered_at",
+      "opted_out"
+     ]
+    },
+    "rt": {
+     "email": {
+      "subject": "Action needed: your payment for {{business_name}} didn't go through",
+      "body": "Hi {{first_name}},\n\nWe couldn't process your latest payment of {{amount_display}} for {{business_name}}. This is usually an expired card or a bank block, and it's easy to fix.\n\nUpdate your payment method here: {{billing_portal_url}}\nOr pay this invoice directly: {{hosted_invoice_url}}\n\nIf you've already fixed it, thank you. Questions? Just reply.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "Payment failed: {{name}} ({{amount_display}}, attempt {{attempt_count}})",
+      "body": "{{name}} ({{email}}) had a failed payment of {{amount_display}}.\n\nInvoice: {{hosted_invoice_url}}\n\nThey were emailed an update link. Follow-ups run automatically while the invoice is unpaid."
+     }
+    },
+    "routes": [
+     {
+      "status": "new",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Log Failure",
+        "op": "appendOrUpdate",
+        "sheet": "FailedPayments",
+        "match": [
+         "invoice_id"
+        ],
+        "cols": [
+         "invoice_id",
+         "customer_id",
+         "email",
+         "name",
+         "amount",
+         "amount_display",
+         "currency",
+         "attempt_count",
+         "failed_at",
+         "hosted_invoice_url",
+         "subscription_id",
+         "status",
+         "d0_sent",
+         "opted_out"
+        ]
+       },
+       {
+        "type": "gmail",
+        "name": "Email Customer",
+        "to": "mail_to",
+        "subject": "mail_subject",
+        "html": "mail_html",
+        "when": "mail_to"
+       },
+       {
+        "type": "gmail",
+        "name": "Notify Owner",
+        "to": "owner_to",
+        "subject": "owner_subject",
+        "html": "owner_html"
+       }
+      ]
+     },
+     {
+      "status": "existing",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Update Attempt Count",
+        "op": "update",
+        "sheet": "FailedPayments",
+        "match": [
+         "invoice_id"
+        ],
+        "cols": [
+         "invoice_id",
+         "attempt_count"
+        ]
+       }
+      ]
+     }
+    ],
+    "n": 1,
+    "wfname": "StripeRecovery 1 - Payment Failed",
+    "file": "1-payment-failed.json"
+   },
+   {
+    "id": "dunning",
+    "kind": "sequence",
+    "title": "Dunning Sequence",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "FailedPayments",
+     "key_col": "invoice_id",
+     "date_col": "failed_at",
+     "base_status": [
+      "open"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "d1_sent",
+       "offset_days": 3,
+       "window_days": 3,
+       "subject": "Reminder: please update your payment method",
+       "body": "Hi {{first_name}},\n\nWe still haven't been able to collect {{amount_display}} for {{business_name}}. To keep your access, please update your payment method: {{billing_portal_url}}\n\nOr pay this invoice: {{hosted_invoice_url}}\n\nNeed help? Reply to this email.\n\n{{business_name}}"
+      },
+      {
+       "flag": "d2_sent",
+       "offset_days": 7,
+       "window_days": 4,
+       "subject": "Your {{business_name}} account is at risk",
+       "body": "Hi {{first_name}},\n\nYour payment of {{amount_display}} is still outstanding. If we can't collect it soon, your subscription may be cancelled.\n\nFix it in a minute: {{billing_portal_url}}\n\nIf there's a problem or you want to cancel, reply and tell us.\n\n{{business_name}}"
+      },
+      {
+       "flag": "d3_sent",
+       "offset_days": 12,
+       "window_days": 30,
+       "subject": "Final notice: payment needed for {{business_name}}",
+       "body": "Hi {{first_name}},\n\nThis is our final notice about your unpaid {{amount_display}}. Please update your payment method now to avoid cancellation: {{billing_portal_url}}\n\nIf you'd like to stop your subscription instead, just reply.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read FailedPayments"
+    },
+    "n": 2,
+    "wfname": "StripeRecovery 2 - Dunning Sequence",
+    "file": "2-dunning-sequence.json"
+   },
+   {
+    "id": "recovered",
+    "kind": "trigger",
+    "title": "Payment Recovered",
+    "lite": false,
+    "trigger": {
+     "type": "n8n-nodes-base.stripeTrigger",
+     "ver": 1,
+     "params": {
+      "events": [
+       "invoice.paid"
+      ]
+     },
+     "note": "Connect your Stripe credential."
+    },
+    "read_sheet": "FailedPayments",
+    "read_node": "Read Failed Payments",
+    "js": "stripe_paid.js",
+    "ctx_keys": [
+     "first_name",
+     "amount_display",
+     "name",
+     "email"
+    ],
+    "columns": {
+     "FailedPayments": [
+      "invoice_id",
+      "customer_id",
+      "email",
+      "name",
+      "amount",
+      "amount_display",
+      "currency",
+      "attempt_count",
+      "failed_at",
+      "hosted_invoice_url",
+      "subscription_id",
+      "status",
+      "d0_sent",
+      "d1_sent",
+      "d2_sent",
+      "d3_sent",
+      "recovered_at",
+      "opted_out"
+     ]
+    },
+    "rt": {
+     "email": {
+      "subject": "Thank you, your payment went through",
+      "body": "Hi {{first_name}},\n\nThanks, we received your payment of {{amount_display}} and your account is all set.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "Recovered: {{name}} ({{amount_display}})",
+      "body": "{{name}} ({{email}}) paid the previously failed invoice of {{amount_display}}."
+     }
+    },
+    "routes": [
+     {
+      "status": "new",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Mark Recovered",
+        "op": "update",
+        "sheet": "FailedPayments",
+        "match": [
+         "invoice_id"
+        ],
+        "cols": [
+         "invoice_id",
+         "status",
+         "recovered_at"
+        ]
+       },
+       {
+        "type": "gmail",
+        "name": "Thank Customer",
+        "to": "mail_to",
+        "subject": "mail_subject",
+        "html": "mail_html",
+        "when": "mail_to"
+       },
+       {
+        "type": "gmail",
+        "name": "Notify Owner",
+        "to": "owner_to",
+        "subject": "owner_subject",
+        "html": "owner_html"
+       }
+      ]
+     }
+    ],
+    "n": 3,
+    "wfname": "StripeRecovery 3 - Payment Recovered",
+    "file": "3-payment-recovered.json"
+   },
+   {
+    "id": "subs",
+    "kind": "trigger",
+    "title": "Subscription Status Sync",
+    "lite": false,
+    "trigger": {
+     "type": "n8n-nodes-base.stripeTrigger",
+     "ver": 1,
+     "params": {
+      "events": [
+       "customer.subscription.updated",
+       "customer.subscription.deleted"
+      ]
+     },
+     "note": "Connect your Stripe credential."
+    },
+    "js": "stripe_sub.js",
+    "columns": {
+     "Subscribers": [
+      "subscription_id",
+      "customer_id",
+      "status",
+      "cancel_at_period_end",
+      "current_period_end",
+      "price_id",
+      "updated_at"
+     ]
+    },
+    "rt": {},
+    "routes": [
+     {
+      "status": "new",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Upsert Subscriber",
+        "op": "appendOrUpdate",
+        "sheet": "Subscribers",
+        "match": [
+         "subscription_id"
+        ],
+        "cols": [
+         "subscription_id",
+         "customer_id",
+         "status",
+         "cancel_at_period_end",
+         "current_period_end",
+         "price_id",
+         "updated_at"
+        ]
+       }
+      ]
+     }
+    ],
+    "n": 4,
+    "wfname": "StripeRecovery 4 - Subscription Status Sync",
+    "file": "4-subscription-status-sync.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Recovery Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "fp",
+       "sheet": "FailedPayments",
+       "key_col": "invoice_id",
+       "node": "Read FailedPayments"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New failed payments",
+       "source": "fp",
+       "op": "count",
+       "date_col": "failed_at",
+       "alert_rise_pct": 50
+      },
+      {
+       "label": "Recovered",
+       "source": "fp",
+       "op": "count",
+       "date_col": "recovered_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "recovered"
+        }
+       ]
+      },
+      {
+       "label": "Recovered revenue",
+       "source": "fp",
+       "op": "sum",
+       "col": "amount",
+       "date_col": "recovered_at",
+       "format": "money",
+       "where": [
+        {
+         "field": "status",
+         "equals": "recovered"
+        }
+       ]
+      },
+      {
+       "label": "Still unpaid (count)",
+       "source": "fp",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "open"
+        }
+       ]
+      },
+      {
+       "label": "Revenue at risk",
+       "source": "fp",
+       "op": "sum",
+       "col": "amount",
+       "format": "money",
+       "where": [
+        {
+         "field": "status",
+         "equals": "open"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly payment recovery ({{flagged_count}} alert(s))",
+     "intro": "Failed-payment recovery for the last {{window_days}} days. Amounts are in each invoice's currency; mixed currencies are added without conversion."
+    },
+    "test_rows": {
+     "fp": [
+      {
+       "invoice_id": "in_1",
+       "amount": "49",
+       "failed_at": "2026-10-08",
+       "recovered_at": "2026-10-10",
+       "status": "recovered"
+      },
+      {
+       "invoice_id": "in_2",
+       "amount": "99",
+       "failed_at": "2026-10-09",
+       "recovered_at": "",
+       "status": "open"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 5,
+    "wfname": "StripeRecovery 5 - Weekly Recovery Report",
+    "file": "5-weekly-recovery-report.json"
+   }
+  ],
+  "cols": {
+   "FailedPayments": [
+    "invoice_id",
+    "customer_id",
+    "email",
+    "name",
+    "amount",
+    "amount_display",
+    "currency",
+    "attempt_count",
+    "failed_at",
+    "hosted_invoice_url",
+    "subscription_id",
+    "status",
+    "d0_sent",
+    "d1_sent",
+    "d2_sent",
+    "d3_sent",
+    "recovered_at",
+    "opted_out"
+   ],
+   "Subscribers": [
+    "subscription_id",
+    "customer_id",
+    "status",
+    "cancel_at_period_end",
+    "current_period_end",
+    "price_id",
+    "updated_at"
+   ]
+  }
+ },
+ {
   "slug": "saas-trial-to-paid",
   "cfg": {
    "business_name": "YOUR PRODUCT",
@@ -1729,6 +2206,452 @@
     "end1_sent",
     "ended_sent",
     "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "shopify-customer-operations",
+  "cfg": {
+   "business_name": "YOUR STORE",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "",
+   "high_value_threshold": 250,
+   "notify_every_order": true,
+   "send_shipping_email": true,
+   "low_stock_threshold": 5,
+   "review_link": "https://example.com/review",
+   "returns_policy_url": "https://example.com/returns"
+  },
+  "flows": [
+   {
+    "id": "order",
+    "kind": "trigger",
+    "title": "New Order Alert And Log",
+    "lite": true,
+    "trigger": {
+     "type": "n8n-nodes-base.shopifyTrigger",
+     "ver": 1,
+     "params": {
+      "authentication": "accessToken",
+      "topic": "orders/create"
+     },
+     "note": "Connect your Shopify Access Token credential (custom app with read_orders)."
+    },
+    "js": "shopify_order.js",
+    "ctx_keys": [
+     "order_number",
+     "name",
+     "total",
+     "items",
+     "ship_to",
+     "financial_status",
+     "email",
+     "flag"
+    ],
+    "columns": {
+     "Orders": [
+      "order_id",
+      "order_number",
+      "email",
+      "name",
+      "total_price",
+      "currency",
+      "items",
+      "ship_to",
+      "financial_status",
+      "status",
+      "created_at",
+      "fulfilled_at",
+      "tracking",
+      "opted_out",
+      "review_sent"
+     ]
+    },
+    "rt": {
+     "owner": {
+      "subject": "{{flag}}New order {{order_number}}: {{total}}",
+      "body": "{{name}} ({{email}}) ordered {{items}}.\n\nTotal: {{total}} ({{financial_status}})\nShip to: {{ship_to}}"
+     }
+    },
+    "routes": [
+     {
+      "status": "new",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Log Order",
+        "op": "appendOrUpdate",
+        "sheet": "Orders",
+        "match": [
+         "order_id"
+        ],
+        "cols": [
+         "order_id",
+         "order_number",
+         "email",
+         "name",
+         "total_price",
+         "currency",
+         "items",
+         "ship_to",
+         "financial_status",
+         "status",
+         "created_at"
+        ]
+       },
+       {
+        "type": "gmail",
+        "name": "Notify Owner",
+        "to": "owner_to",
+        "subject": "owner_subject",
+        "html": "owner_html",
+        "when": "owner_to"
+       }
+      ]
+     }
+    ],
+    "n": 1,
+    "wfname": "Shopify 1 - New Order Alert And Log",
+    "file": "1-new-order-alert-and-log.json"
+   },
+   {
+    "id": "shipped",
+    "kind": "trigger",
+    "title": "Shipment Update Email",
+    "lite": true,
+    "trigger": {
+     "type": "n8n-nodes-base.shopifyTrigger",
+     "ver": 1,
+     "params": {
+      "authentication": "accessToken",
+      "topic": "orders/fulfilled"
+     },
+     "note": "Connect your Shopify Access Token credential."
+    },
+    "js": "shopify_fulfilled.js",
+    "ctx_keys": [
+     "first_name",
+     "order_number",
+     "tracking",
+     "tracking_urls",
+     "email"
+    ],
+    "columns": {
+     "Orders": [
+      "order_id",
+      "order_number",
+      "email",
+      "name",
+      "total_price",
+      "currency",
+      "items",
+      "ship_to",
+      "financial_status",
+      "status",
+      "created_at",
+      "fulfilled_at",
+      "tracking",
+      "opted_out",
+      "review_sent"
+     ]
+    },
+    "rt": {
+     "email": {
+      "subject": "Your order {{order_number}} has shipped",
+      "body": "Hi {{first_name}},\n\nGood news: your order {{order_number}} is on its way.\n\nTracking: {{tracking}}\n{{tracking_urls}}\n\nQuestions? Reply to this email.\n\n{{business_name}}"
+     }
+    },
+    "routes": [
+     {
+      "status": "new",
+      "actions": [
+       {
+        "type": "sheet",
+        "name": "Mark Fulfilled",
+        "op": "appendOrUpdate",
+        "sheet": "Orders",
+        "match": [
+         "order_id"
+        ],
+        "cols": [
+         "order_id",
+         "status",
+         "fulfilled_at",
+         "tracking"
+        ]
+       },
+       {
+        "type": "gmail",
+        "name": "Email Customer",
+        "to": "mail_to",
+        "subject": "mail_subject",
+        "html": "mail_html",
+        "when": "mail_to"
+       }
+      ]
+     }
+    ],
+    "n": 2,
+    "wfname": "Shopify 2 - Shipment Update Email",
+    "file": "2-shipment-update-email.json"
+   },
+   {
+    "id": "return",
+    "kind": "intake",
+    "title": "Return Request Intake",
+    "lite": false,
+    "hook": "shopify-return",
+    "rt": {
+     "sheet": "Returns",
+     "id_col": "return_id",
+     "id_prefix": "RT",
+     "dedupe": [
+      "email",
+      "order_number",
+      "item"
+     ],
+     "fields": [
+      {
+       "key": "order_number",
+       "required": true,
+       "max_length": 20,
+       "sample": "#1042"
+      },
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Dana Cole"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "dana@example.test"
+      },
+      {
+       "key": "item",
+       "required": true,
+       "max_length": 200,
+       "sample": "Ceramic mug"
+      },
+      {
+       "key": "reason",
+       "type": "select",
+       "required": true,
+       "sample": "Damaged",
+       "options": [
+        "Damaged",
+        "Wrong item",
+        "Not as described",
+        "Changed my mind",
+        "Other"
+       ]
+      },
+      {
+       "key": "resolution",
+       "type": "select",
+       "default": "Refund",
+       "sample": "Refund",
+       "options": [
+        "Refund",
+        "Exchange",
+        "Store credit"
+       ]
+      },
+      {
+       "key": "note",
+       "max_length": 800,
+       "sample": "Handle broke in shipping."
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      }
+     ],
+     "ack": {
+      "subject": "We received your return request for order {{order_number}}",
+      "body": "Hi {{first_name}},\n\nWe received your request about {{item}} (order {{order_number}}), reason: {{reason}}. We'll review it and reply with the next steps. Our returns policy: {{returns_policy_url}}\n\nWe'll never ask for payment details by email.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "Return request: order {{order_number}} from {{name}}",
+      "body": "{{name}} ({{email}}) wants a {{resolution}} for {{item}} on order {{order_number}}.\n\nReason: {{reason}}\n{{note}}\n\nReturn ID: {{id}}. Nothing has been refunded automatically; handle it in Shopify."
+     }
+    },
+    "n": 3,
+    "wfname": "Shopify 3 - Return Request Intake",
+    "file": "3-return-request-intake.json"
+   },
+   {
+    "id": "reviews",
+    "kind": "sequence",
+    "title": "Review Requests",
+    "lite": false,
+    "cron": "0 11 * * *",
+    "rt": {
+     "sheet": "Orders",
+     "key_col": "order_id",
+     "date_col": "fulfilled_at",
+     "base_status": [
+      "fulfilled"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "review_sent",
+       "offset_days": 7,
+       "window_days": 14,
+       "marketing": true,
+       "subject": "How is your order from {{business_name}}?",
+       "body": "Hi {{first_name}},\n\nYour order {{order_number}} should have arrived by now. We'd love to hear what you think. Leave an honest review here: {{review_link}}\n\nIf something isn't right, reply and we'll fix it.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Orders"
+    },
+    "n": 4,
+    "wfname": "Shopify 4 - Review Requests",
+    "file": "4-review-requests.json"
+   },
+   {
+    "id": "lowstock",
+    "kind": "lowstock",
+    "title": "Low Stock Alert",
+    "lite": false,
+    "cron": "0 8 * * *",
+    "ctx_keys": [
+     "count",
+     "threshold"
+    ],
+    "rt": {
+     "subject": "{{count}} variant(s) at or below {{low_stock_threshold}} units",
+     "intro": "These Shopify variants are running low (inventory-tracked variants only, threshold {{threshold}}):"
+    },
+    "n": 5,
+    "wfname": "Shopify 5 - Low Stock Alert",
+    "file": "5-low-stock-alert.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Store Summary",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "orders",
+       "sheet": "Orders",
+       "key_col": "order_id",
+       "node": "Read Orders"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Orders",
+       "source": "orders",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Order revenue",
+       "source": "orders",
+       "op": "sum",
+       "col": "total_price",
+       "date_col": "created_at",
+       "format": "money"
+      },
+      {
+       "label": "Average order",
+       "source": "orders",
+       "op": "avg",
+       "col": "total_price",
+       "date_col": "created_at",
+       "format": "money"
+      },
+      {
+       "label": "Shipped",
+       "source": "orders",
+       "op": "count",
+       "date_col": "fulfilled_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "fulfilled"
+        }
+       ]
+      },
+      {
+       "label": "Not yet shipped",
+       "source": "orders",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "new"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly store summary ({{flagged_count}} alert(s))",
+     "intro": "Orders logged by this pack in the last {{window_days}} days."
+    },
+    "test_rows": {
+     "orders": [
+      {
+       "order_id": "1",
+       "total_price": "64",
+       "created_at": "2026-10-10",
+       "status": "new",
+       "fulfilled_at": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 6,
+    "wfname": "Shopify 6 - Weekly Store Summary",
+    "file": "6-weekly-store-summary.json"
+   }
+  ],
+  "cols": {
+   "Orders": [
+    "order_id",
+    "order_number",
+    "email",
+    "name",
+    "total_price",
+    "currency",
+    "items",
+    "ship_to",
+    "financial_status",
+    "status",
+    "created_at",
+    "fulfilled_at",
+    "tracking",
+    "opted_out",
+    "review_sent"
+   ],
+   "Returns": [
+    "return_id",
+    "created_at",
+    "order_number",
+    "name",
+    "email",
+    "item",
+    "reason",
+    "resolution",
+    "note",
+    "status"
    ]
   }
  },
@@ -3684,6 +4607,1180 @@
   }
  },
  {
+  "slug": "support-ticket-triage",
+  "cfg": {
+   "business_name": "YOUR COMPANY",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "sla_hours": {
+    "high": 4,
+    "normal": 24,
+    "low": 72,
+    "default": 24
+   }
+  },
+  "flows": [
+   {
+    "id": "ticket",
+    "kind": "intake",
+    "title": "Ticket Intake And Triage",
+    "lite": true,
+    "hook": "support-ticket",
+    "rt": {
+     "sheet": "Tickets",
+     "id_col": "ticket_id",
+     "id_prefix": "T",
+     "dedupe": [
+      "email",
+      "subject"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Casey Dunn"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "casey@example.test"
+      },
+      {
+       "key": "subject",
+       "required": true,
+       "max_length": 200,
+       "sample": "I was charged twice this month"
+      },
+      {
+       "key": "message",
+       "required": true,
+       "max_length": 3000,
+       "sample": "Hi, I see two charges for my subscription on my card. Please refund one."
+      },
+      {
+       "key": "channel",
+       "type": "select",
+       "default": "Web form",
+       "sample": "Web form",
+       "options": [
+        "Web form",
+        "Email",
+        "Chat",
+        "Other"
+       ]
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      },
+      {
+       "key": "priority",
+       "value": "normal"
+      },
+      {
+       "key": "category",
+       "value": "other"
+      },
+      {
+       "key": "assigned_to",
+       "value": ""
+      }
+     ],
+     "tags": [
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "how do i",
+           "how to",
+           "where can i",
+           "tutorial",
+           "guide"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "how do i",
+           "how to",
+           "where can i",
+           "tutorial",
+           "guide"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "how_to"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "feature",
+           "would be nice",
+           "suggestion",
+           "wish "
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "feature",
+           "would be nice",
+           "suggestion",
+           "wish "
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "feature_request",
+        "priority": "low"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "password",
+           "log in",
+           "login",
+           "sign in",
+           "locked out",
+           "2fa",
+           "verification code"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "password",
+           "log in",
+           "login",
+           "sign in",
+           "locked out",
+           "2fa",
+           "verification code"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "account"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "error",
+           "bug",
+           "crash",
+           "not working",
+           "broken",
+           "doesn't work",
+           "does not work",
+           "fails",
+           "failed"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "error",
+           "bug",
+           "crash",
+           "not working",
+           "broken",
+           "doesn't work",
+           "does not work",
+           "fails",
+           "failed"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "bug"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "invoice",
+           "refund",
+           "charge",
+           "charged",
+           "payment",
+           "subscription",
+           "billing",
+           "receipt"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "invoice",
+           "refund",
+           "charge",
+           "charged",
+           "payment",
+           "subscription",
+           "billing",
+           "receipt"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "billing"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "cancel",
+           "close my account",
+           "delete my account"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "cancel",
+           "close my account",
+           "delete my account"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "category": "cancellation"
+       }
+      },
+      {
+       "when": {
+        "any": [
+         {
+          "field": "subject",
+          "contains_any": [
+           "urgent",
+           "asap",
+           "outage",
+           "is down",
+           "cannot access",
+           "can't access",
+           "charged twice",
+           "double charged",
+           "data loss",
+           "hacked",
+           "security",
+           "legal",
+           "chargeback"
+          ]
+         },
+         {
+          "field": "message",
+          "contains_any": [
+           "urgent",
+           "asap",
+           "outage",
+           "is down",
+           "cannot access",
+           "can't access",
+           "charged twice",
+           "double charged",
+           "data loss",
+           "hacked",
+           "security",
+           "legal",
+           "chargeback"
+          ]
+         }
+        ]
+       },
+       "set": {
+        "priority": "high"
+       }
+      }
+     ],
+     "sla": {
+      "by": "priority",
+      "hours_cfg": "sla_hours",
+      "col": "sla_due",
+      "date_col": "sla_date"
+     },
+     "ack": {
+      "subject": "We received your request [{{id}}]",
+      "body": "Hi {{first_name}},\n\nWe received your message: \"{{subject}}\". Your ticket number is {{id}}.\n\nOur target is to reply within {{sla_hours}} hours. You can reply to this email to add information.\n\n{{business_name}} Support"
+     },
+     "drafts_by": "category",
+     "drafts": {
+      "default": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nThanks for contacting us. [WRITE YOUR REPLY]\n\n{{business_name}} Support"
+      },
+      "billing": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nThanks for contacting us about billing. I'm looking at your account now. [CONFIRM WHAT YOU FOUND AND WHAT YOU WILL DO]\n\n{{business_name}} Support"
+      },
+      "bug": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nThanks for reporting this. To help us reproduce it, could you tell us: what you were doing, what you expected, what happened, and your browser/device? [ADD ANY KNOWN WORKAROUND]\n\n{{business_name}} Support"
+      },
+      "account": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nSorry you're having trouble with your account. [CONFIRM IDENTITY THROUGH YOUR NORMAL PROCESS BEFORE CHANGING ANYTHING]\n\n{{business_name}} Support"
+      },
+      "how_to": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nHappy to help. [ADD STEPS OR A LINK TO THE RIGHT DOC]\n\n{{business_name}} Support"
+      },
+      "cancellation": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nI'm sorry to see you go. [CONFIRM CANCELLATION STEPS AND ANY REFUND POLICY]\n\n{{business_name}} Support"
+      },
+      "feature_request": {
+       "subject": "Re: {{subject}} [{{id}}]",
+       "body": "Hi {{first_name}},\n\nThanks for the suggestion. I've passed it along. [BE HONEST ABOUT WHETHER IT'S PLANNED]\n\n{{business_name}} Support"
+      }
+     },
+     "owner": {
+      "subject": "[{{priority}}/{{category}}] {{subject}}: {{name}}",
+      "body": "{{name}} ({{email}}) via {{channel}}:\n\n{{subject}}\n\n{{message}}\n\nCategory: {{category}} / Priority: {{priority}} / Respond by: {{sla_due}}\nTicket: {{id}}\n\nA reply DRAFT is waiting in your Gmail drafts. Review and edit it before sending; nothing is sent to the customer automatically except the receipt."
+     }
+    },
+    "tests": [
+     {
+      "name": "double charge is high-priority billing",
+      "expect_row": {
+       "category": "billing",
+       "priority": "high"
+      }
+     },
+     {
+      "name": "how-to question",
+      "set": {
+       "subject": "How do I export my data?",
+       "message": "I want to export a CSV."
+      },
+      "expect_row": {
+       "category": "how_to",
+       "priority": "normal"
+      }
+     },
+     {
+      "name": "feature request is low priority",
+      "set": {
+       "subject": "Suggestion",
+       "message": "It would be nice to have dark mode."
+      },
+      "expect_row": {
+       "category": "feature_request",
+       "priority": "low"
+      }
+     },
+     {
+      "name": "outage keyword",
+      "set": {
+       "subject": "Site is down",
+       "message": "Nobody on my team can log in, this is urgent"
+      },
+      "expect_row": {
+       "priority": "high"
+      }
+     }
+    ],
+    "n": 1,
+    "wfname": "Support 1 - Ticket Intake And Triage",
+    "file": "1-ticket-intake-and-triage.json"
+   },
+   {
+    "id": "update",
+    "kind": "event",
+    "title": "Update Ticket",
+    "lite": true,
+    "hook": "support-update",
+    "rt": {
+     "sheet": "Tickets",
+     "key_col": "ticket_id",
+     "key_field": "ticket_id",
+     "emails_key": "status",
+     "fields": [
+      {
+       "key": "ticket_id",
+       "required": true,
+       "sample": "Tabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "casey@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Casey Dunn",
+       "write": false
+      },
+      {
+       "key": "subject",
+       "sample": "Billing question",
+       "write": false
+      },
+      {
+       "key": "status",
+       "type": "select",
+       "required": true,
+       "sample": "resolved",
+       "options": [
+        "open",
+        "pending",
+        "resolved",
+        "closed"
+       ]
+      },
+      {
+       "key": "assigned_to",
+       "max_length": 80,
+       "sample": "Sam"
+      }
+     ],
+     "emails": {
+      "resolved": {
+       "subject": "Resolved: {{subject}} [{{ticket_id}}]",
+       "body": "Hi {{first_name}},\n\nWe've marked your request resolved. If it isn't, just reply to this email and we'll reopen it.\n\n{{business_name}} Support"
+      }
+     }
+    },
+    "n": 2,
+    "wfname": "Support 2 - Update Ticket",
+    "file": "2-update-ticket.json"
+   },
+   {
+    "id": "sla",
+    "kind": "digest",
+    "title": "SLA Breach Watch",
+    "lite": false,
+    "cron": "0 9,15 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "tickets",
+       "sheet": "Tickets",
+       "key_col": "ticket_id",
+       "node": "Read Tickets"
+      }
+     ],
+     "list": {
+      "source": "tickets",
+      "where": [
+       {
+        "not": {
+         "field": "status",
+         "in": [
+          "resolved",
+          "closed"
+         ]
+        }
+       }
+      ],
+      "date_col": "sla_date",
+      "within_days": 0,
+      "columns": [
+       "ticket_id",
+       "name",
+       "subject",
+       "priority",
+       "status",
+       "sla_due"
+      ]
+     },
+     "subject": "{{count}} ticket(s) due or past due ({{overdue_count}} overdue)",
+     "intro": "Open tickets at or past their response target:"
+    },
+    "test_rows": {
+     "tickets": [
+      {
+       "ticket_id": "1",
+       "name": "A",
+       "subject": "S",
+       "priority": "high",
+       "status": "new",
+       "sla_due": "x",
+       "sla_date": "2026-10-11"
+      },
+      {
+       "ticket_id": "2",
+       "name": "B",
+       "subject": "S",
+       "priority": "normal",
+       "status": "resolved",
+       "sla_due": "x",
+       "sla_date": "2026-10-10"
+      },
+      {
+       "ticket_id": "3",
+       "name": "C",
+       "subject": "S",
+       "priority": "low",
+       "status": "open",
+       "sla_due": "x",
+       "sla_date": "2026-10-20"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "Support 3 - SLA Breach Watch",
+    "file": "3-sla-breach-watch.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Support Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "tickets",
+       "sheet": "Tickets",
+       "key_col": "ticket_id",
+       "node": "Read Tickets"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New tickets",
+       "source": "tickets",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_rise_pct": 75
+      },
+      {
+       "label": "High priority",
+       "source": "tickets",
+       "op": "count",
+       "date_col": "created_at",
+       "where": [
+        {
+         "field": "priority",
+         "equals": "high"
+        }
+       ]
+      },
+      {
+       "label": "Billing tickets",
+       "source": "tickets",
+       "op": "count",
+       "date_col": "created_at",
+       "where": [
+        {
+         "field": "category",
+         "equals": "billing"
+        }
+       ]
+      },
+      {
+       "label": "Bug tickets",
+       "source": "tickets",
+       "op": "count",
+       "date_col": "created_at",
+       "where": [
+        {
+         "field": "category",
+         "equals": "bug"
+        }
+       ]
+      },
+      {
+       "label": "Resolved",
+       "source": "tickets",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "resolved"
+        }
+       ]
+      },
+      {
+       "label": "Open now",
+       "source": "tickets",
+       "op": "count",
+       "where": [
+        {
+         "not": {
+          "field": "status",
+          "in": [
+           "resolved",
+           "closed"
+          ]
+         }
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly support report ({{flagged_count}} alert(s))",
+     "intro": "Support volume for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "tickets": [
+      {
+       "ticket_id": "1",
+       "created_at": "2026-10-10",
+       "priority": "high",
+       "category": "billing",
+       "status": "new",
+       "updated_at": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Support 4 - Weekly Support Report",
+    "file": "4-weekly-support-report.json"
+   }
+  ],
+  "cols": {
+   "Tickets": [
+    "ticket_id",
+    "created_at",
+    "name",
+    "email",
+    "subject",
+    "message",
+    "channel",
+    "status",
+    "priority",
+    "category",
+    "assigned_to",
+    "sla_due",
+    "sla_date",
+    "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "content-repurposing-studio",
+  "cfg": {
+   "business_name": "YOUR BRAND",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "ai_model": "claude-sonnet-5-5",
+   "ai_max_tokens": 4000,
+   "max_chars": 24000,
+   "max_social": 5,
+   "voice": "clear, friendly, plain language",
+   "audience": "small business owners"
+  },
+  "flows": [
+   {
+    "id": "submit",
+    "kind": "content",
+    "title": "Submit Content For Drafting",
+    "lite": true,
+    "hook": "content-submit",
+    "js": "content_prepare.js",
+    "ctx_keys": [
+     "count",
+     "title"
+    ],
+    "columns": {
+     "Content": [
+      "content_id",
+      "created_at",
+      "title",
+      "author",
+      "source_url",
+      "tone",
+      "status",
+      "draft_count"
+     ],
+     "Drafts": [
+      "draft_id",
+      "content_id",
+      "asset_type",
+      "platform",
+      "title",
+      "text",
+      "status",
+      "scheduled_date",
+      "created_at"
+     ]
+    },
+    "rt": {
+     "fields": [
+      {
+       "key": "title",
+       "required": true,
+       "max_length": 200,
+       "sample": "Episode 42: How we cut onboarding time in half"
+      },
+      {
+       "key": "transcript",
+       "required": true,
+       "max_length": 60000,
+       "sample": "Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. "
+      },
+      {
+       "key": "content_url",
+       "type": "url",
+       "sample": "https://example.com/episodes/42"
+      },
+      {
+       "key": "author",
+       "max_length": 80,
+       "sample": "Alex"
+      },
+      {
+       "key": "tone",
+       "type": "select",
+       "default": "neutral",
+       "sample": "friendly",
+       "options": [
+        "neutral",
+        "friendly",
+        "professional",
+        "playful"
+       ]
+      }
+     ],
+     "owner": {
+      "subject": "{{count}} draft(s) ready for review: {{title}}",
+      "body": "The AI produced {{count}} draft assets for \"{{title}}\". They are in the Drafts sheet with status pending_approval.\n\nReview every draft for accuracy before approving. Nothing is published automatically."
+     }
+    },
+    "n": 1,
+    "wfname": "Content 1 - Submit Content For Drafting",
+    "file": "1-submit-content-for-drafting.json"
+   },
+   {
+    "id": "approve",
+    "kind": "event",
+    "title": "Approve Or Reject Draft",
+    "lite": true,
+    "hook": "content-approve",
+    "rt": {
+     "sheet": "Drafts",
+     "key_col": "draft_id",
+     "key_field": "draft_id",
+     "fields": [
+      {
+       "key": "draft_id",
+       "required": true,
+       "sample": "CNabc123-1"
+      },
+      {
+       "key": "status",
+       "type": "select",
+       "required": true,
+       "sample": "approved",
+       "options": [
+        "approved",
+        "rejected"
+       ]
+      },
+      {
+       "key": "scheduled_date",
+       "type": "date",
+       "sample": "2026-10-20"
+      }
+     ]
+    },
+    "n": 2,
+    "wfname": "Content 2 - Approve Or Reject Draft",
+    "file": "2-approve-or-reject-draft.json"
+   },
+   {
+    "id": "calendar",
+    "kind": "digest",
+    "title": "Publishing Calendar",
+    "lite": false,
+    "cron": "0 8 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "drafts",
+       "sheet": "Drafts",
+       "key_col": "draft_id",
+       "node": "Read Drafts"
+      }
+     ],
+     "list": {
+      "source": "drafts",
+      "where": [
+       {
+        "field": "status",
+        "equals": "approved"
+       }
+      ],
+      "date_col": "scheduled_date",
+      "min_days": 0,
+      "within_days": 1,
+      "columns": [
+       "draft_id",
+       "asset_type",
+       "platform",
+       "scheduled_date",
+       "text"
+      ]
+     },
+     "subject": "{{count}} approved post(s) scheduled for today or tomorrow",
+     "intro": "Approved content due to publish. Publish it yourself in each platform. This pack never posts for you."
+    },
+    "test_rows": {
+     "drafts": [
+      {
+       "draft_id": "1",
+       "asset_type": "social",
+       "platform": "linkedin",
+       "status": "approved",
+       "scheduled_date": "2026-10-13",
+       "text": "Hello"
+      },
+      {
+       "draft_id": "2",
+       "asset_type": "blog",
+       "platform": "",
+       "status": "approved",
+       "scheduled_date": "2026-10-30",
+       "text": "x"
+      },
+      {
+       "draft_id": "3",
+       "asset_type": "social",
+       "platform": "x",
+       "status": "pending_approval",
+       "scheduled_date": "2026-10-12",
+       "text": "y"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "Content 3 - Publishing Calendar",
+    "file": "3-publishing-calendar.json"
+   },
+   {
+    "id": "pending",
+    "kind": "digest",
+    "title": "Drafts Waiting For Approval",
+    "lite": false,
+    "cron": "0 9 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "drafts",
+       "sheet": "Drafts",
+       "key_col": "draft_id",
+       "node": "Read Drafts"
+      }
+     ],
+     "list": {
+      "source": "drafts",
+      "where": [
+       {
+        "field": "status",
+        "equals": "pending_approval"
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": -1,
+      "columns": [
+       "draft_id",
+       "asset_type",
+       "platform",
+       "created_at"
+      ]
+     },
+     "subject": "{{count}} draft(s) waiting for review",
+     "intro": "These AI-generated drafts have not been reviewed yet:"
+    },
+    "test_rows": {
+     "drafts": [
+      {
+       "draft_id": "1",
+       "asset_type": "blog",
+       "platform": "",
+       "status": "pending_approval",
+       "created_at": "2026-10-09"
+      },
+      {
+       "draft_id": "2",
+       "asset_type": "social",
+       "platform": "x",
+       "status": "pending_approval",
+       "created_at": "2026-10-12"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Content 4 - Drafts Waiting For Approval",
+    "file": "4-drafts-waiting-for-approval.json"
+   }
+  ],
+  "cols": {
+   "Content": [
+    "content_id",
+    "created_at",
+    "title",
+    "author",
+    "source_url",
+    "tone",
+    "status",
+    "draft_count"
+   ],
+   "Drafts": [
+    "draft_id",
+    "content_id",
+    "asset_type",
+    "platform",
+    "title",
+    "text",
+    "status",
+    "scheduled_date",
+    "created_at",
+    "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "newsletter-research-publishing",
+  "cfg": {
+   "business_name": "YOUR NEWSLETTER",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "newsletter_name": "YOUR NEWSLETTER",
+   "editor_email": "editor@example.com",
+   "feeds": [
+    "https://hnrss.org/frontpage",
+    "https://www.nasa.gov/rss/dyn/breaking_news.rss"
+   ],
+   "include_keywords": [],
+   "exclude_keywords": [
+    "sponsored",
+    "advertisement"
+   ],
+   "max_age_days": 7,
+   "max_items": 10,
+   "max_new_per_run": 30,
+   "intro_text": ""
+  },
+  "flows": [
+   {
+    "id": "collect",
+    "kind": "rss",
+    "title": "Collect Stories",
+    "lite": true,
+    "cron": "0 6 * * *",
+    "rt": {},
+    "columns": {
+     "Stories": [
+      "story_id",
+      "created_at",
+      "title",
+      "link",
+      "source",
+      "published",
+      "summary",
+      "score",
+      "status",
+      "editor_note",
+      "drafted_at"
+     ]
+    },
+    "n": 1,
+    "wfname": "Newsletter 1 - Collect Stories",
+    "file": "1-collect-stories.json"
+   },
+   {
+    "id": "approve",
+    "kind": "event",
+    "title": "Approve Or Reject Story",
+    "lite": true,
+    "hook": "newsletter-approve",
+    "rt": {
+     "sheet": "Stories",
+     "key_col": "story_id",
+     "key_field": "story_id",
+     "fields": [
+      {
+       "key": "story_id",
+       "required": true,
+       "sample": "Sabc123"
+      },
+      {
+       "key": "status",
+       "type": "select",
+       "required": true,
+       "sample": "approved",
+       "options": [
+        "approved",
+        "rejected"
+       ]
+      },
+      {
+       "key": "editor_note",
+       "max_length": 300,
+       "sample": "Why it matters: affects our readers' budgets."
+      }
+     ]
+    },
+    "n": 2,
+    "wfname": "Newsletter 2 - Approve Or Reject Story",
+    "file": "2-approve-or-reject-story.json"
+   },
+   {
+    "id": "review",
+    "kind": "digest",
+    "title": "Stories Waiting For Review",
+    "lite": false,
+    "cron": "30 6 * * *",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "stories",
+       "sheet": "Stories",
+       "key_col": "story_id",
+       "node": "Read Stories"
+      }
+     ],
+     "list": {
+      "source": "stories",
+      "where": [
+       {
+        "field": "status",
+        "equals": "new"
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": 0,
+      "to_cfg": "editor_email",
+      "columns": [
+       "title",
+       "source",
+       "published",
+       "score",
+       "story_id"
+      ]
+     },
+     "subject": "{{count}} new stories to review",
+     "intro": "Approve or reject each story (status column or the approve webhook). Higher score = more keyword matches."
+    },
+    "test_rows": {
+     "stories": [
+      {
+       "story_id": "S1",
+       "title": "A",
+       "source": "x.com",
+       "published": "2026-10-11",
+       "score": "2",
+       "status": "new",
+       "created_at": "2026-10-12"
+      },
+      {
+       "story_id": "S2",
+       "title": "B",
+       "source": "y.com",
+       "published": "2026-10-10",
+       "score": "0",
+       "status": "approved",
+       "created_at": "2026-10-11"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "Newsletter 3 - Stories Waiting For Review",
+    "file": "3-stories-waiting-for-review.json"
+   },
+   {
+    "id": "build",
+    "kind": "newsletter",
+    "title": "Build Newsletter Draft",
+    "lite": true,
+    "cron": "0 9 * * 4",
+    "rt": {},
+    "columns": {
+     "Stories": [
+      "story_id",
+      "created_at",
+      "title",
+      "link",
+      "source",
+      "published",
+      "summary",
+      "score",
+      "status",
+      "editor_note",
+      "drafted_at"
+     ]
+    },
+    "n": 4,
+    "wfname": "Newsletter 4 - Build Newsletter Draft",
+    "file": "4-build-newsletter-draft.json"
+   }
+  ],
+  "cols": {
+   "Stories": [
+    "story_id",
+    "created_at",
+    "title",
+    "link",
+    "source",
+    "published",
+    "summary",
+    "score",
+    "status",
+    "editor_note",
+    "drafted_at",
+    "updated_at"
+   ]
+  }
+ },
+ {
   "slug": "catering-inquiry-funnel",
   "cfg": {
    "business_name": "YOUR CATERING",
@@ -5064,6 +7161,289 @@
     "value",
     "date",
     "note"
+   ]
+  }
+ },
+ {
+  "slug": "incident-alerts",
+  "cfg": {
+   "business_name": "YOUR AGENCY",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "oncall_email": "oncall@example.com",
+   "default_severity": "major",
+   "suppress_minutes": 30,
+   "reminder_minutes": 60,
+   "severity_rules": [
+    {
+     "contains_any": [
+      "checkout",
+      "payment",
+      "api"
+     ],
+     "severity": "critical"
+    },
+    {
+     "contains_any": [
+      "blog",
+      "docs"
+     ],
+     "severity": "minor"
+    }
+   ],
+   "clients": {
+    "Client A website": "client-a@example.com"
+   }
+  },
+  "flows": [
+   {
+    "id": "alert",
+    "kind": "incident",
+    "trigger_kind": "webhook",
+    "title": "Uptime Alert Webhook",
+    "lite": true,
+    "hook": "incident-alert",
+    "ctx_keys": [
+     "monitor",
+     "severity",
+     "message",
+     "url",
+     "minutes",
+     "suppressed",
+     "client_email"
+    ],
+    "sample": {
+     "monitor": "Client A website",
+     "status": "down",
+     "url": "https://client-a.example.com",
+     "message": "HTTP 503",
+     "severity": "critical"
+    },
+    "columns": {
+     "Incidents": [
+      "incident_id",
+      "monitor",
+      "client",
+      "url",
+      "severity",
+      "status",
+      "opened_at",
+      "message",
+      "closed_at",
+      "duration_min",
+      "alerts_sent"
+     ]
+    },
+    "rt": {
+     "open": {
+      "subject": "[{{severity}}] DOWN: {{monitor}}",
+      "body": "{{monitor}} is DOWN.\n\nSeverity: {{severity}}\nURL: {{url}}\nDetails: {{message}}\n\nRepeat alerts are suppressed. You'll get a reminder if it stays down and a message when it recovers."
+     },
+     "reminder": {
+      "subject": "[{{severity}}] STILL DOWN ({{minutes}} min): {{monitor}}",
+      "body": "{{monitor}} has been down for about {{minutes}} minutes.\n\nURL: {{url}}\nDetails: {{message}}"
+     },
+     "resolved": {
+      "subject": "RESOLVED: {{monitor}} (down {{minutes}} min)",
+      "body": "{{monitor}} is back up after about {{minutes}} minutes."
+     },
+     "error": {
+      "subject": "[{{severity}}] Automation error: {{monitor}}",
+      "body": "{{monitor}} failed.\n\n{{message}}\n\nExecution: {{url}}\n\nSimilar errors suppressed since the last alert: {{suppressed}}."
+     },
+     "client_open": {
+      "subject": "We're aware of an issue with {{monitor}}",
+      "body": "Hello,\n\nWe've detected an issue affecting {{monitor}} and are working on it. We'll update you when it's resolved.\n\n[ADD YOUR NAME]"
+     },
+     "client_resolved": {
+      "subject": "Resolved: {{monitor}}",
+      "body": "Hello,\n\nThe issue affecting {{monitor}} has been resolved (about {{minutes}} minutes). Please let us know if you still see problems.\n\n[ADD YOUR NAME]"
+     }
+    },
+    "n": 1,
+    "wfname": "Incident 1 - Uptime Alert Webhook",
+    "file": "1-uptime-alert-webhook.json"
+   },
+   {
+    "id": "errors",
+    "kind": "incident",
+    "trigger_kind": "error",
+    "title": "Automation Error Collector",
+    "lite": true,
+    "ctx_keys": [
+     "monitor",
+     "severity",
+     "message",
+     "url",
+     "minutes",
+     "suppressed",
+     "client_email"
+    ],
+    "columns": {
+     "Incidents": [
+      "incident_id",
+      "monitor",
+      "client",
+      "url",
+      "severity",
+      "status",
+      "opened_at",
+      "message",
+      "closed_at",
+      "duration_min",
+      "alerts_sent"
+     ]
+    },
+    "rt": {
+     "open": {
+      "subject": "[{{severity}}] DOWN: {{monitor}}",
+      "body": "{{monitor}} is DOWN.\n\nSeverity: {{severity}}\nURL: {{url}}\nDetails: {{message}}\n\nRepeat alerts are suppressed. You'll get a reminder if it stays down and a message when it recovers."
+     },
+     "reminder": {
+      "subject": "[{{severity}}] STILL DOWN ({{minutes}} min): {{monitor}}",
+      "body": "{{monitor}} has been down for about {{minutes}} minutes.\n\nURL: {{url}}\nDetails: {{message}}"
+     },
+     "resolved": {
+      "subject": "RESOLVED: {{monitor}} (down {{minutes}} min)",
+      "body": "{{monitor}} is back up after about {{minutes}} minutes."
+     },
+     "error": {
+      "subject": "[{{severity}}] Automation error: {{monitor}}",
+      "body": "{{monitor}} failed.\n\n{{message}}\n\nExecution: {{url}}\n\nSimilar errors suppressed since the last alert: {{suppressed}}."
+     },
+     "client_open": {
+      "subject": "We're aware of an issue with {{monitor}}",
+      "body": "Hello,\n\nWe've detected an issue affecting {{monitor}} and are working on it. We'll update you when it's resolved.\n\n[ADD YOUR NAME]"
+     },
+     "client_resolved": {
+      "subject": "Resolved: {{monitor}}",
+      "body": "Hello,\n\nThe issue affecting {{monitor}} has been resolved (about {{minutes}} minutes). Please let us know if you still see problems.\n\n[ADD YOUR NAME]"
+     }
+    },
+    "n": 2,
+    "wfname": "Incident 2 - Automation Error Collector",
+    "file": "2-automation-error-collector.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Incident Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "inc",
+       "sheet": "Incidents",
+       "key_col": "incident_id",
+       "node": "Read Incidents"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Incidents opened",
+       "source": "inc",
+       "op": "count",
+       "date_col": "opened_at",
+       "alert_rise_pct": 100
+      },
+      {
+       "label": "Critical",
+       "source": "inc",
+       "op": "count",
+       "date_col": "opened_at",
+       "where": [
+        {
+         "field": "severity",
+         "equals": "critical"
+        }
+       ]
+      },
+      {
+       "label": "Resolved",
+       "source": "inc",
+       "op": "count",
+       "date_col": "closed_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "resolved"
+        }
+       ]
+      },
+      {
+       "label": "Average downtime (min)",
+       "source": "inc",
+       "op": "avg",
+       "col": "duration_min",
+       "date_col": "closed_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "resolved"
+        }
+       ]
+      },
+      {
+       "label": "Still open",
+       "source": "inc",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "open"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly incident report ({{flagged_count}} alert(s))",
+     "intro": "Incidents for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "inc": [
+      {
+       "incident_id": "I1",
+       "severity": "critical",
+       "status": "resolved",
+       "opened_at": "2026-10-09",
+       "closed_at": "2026-10-09",
+       "duration_min": "18"
+      },
+      {
+       "incident_id": "I2",
+       "severity": "major",
+       "status": "open",
+       "opened_at": "2026-10-11",
+       "closed_at": "",
+       "duration_min": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "Incident 3 - Weekly Incident Report",
+    "file": "3-weekly-incident-report.json"
+   }
+  ],
+  "cols": {
+   "Incidents": [
+    "incident_id",
+    "monitor",
+    "client",
+    "url",
+    "severity",
+    "status",
+    "opened_at",
+    "message",
+    "closed_at",
+    "duration_min",
+    "alerts_sent"
    ]
   }
  }

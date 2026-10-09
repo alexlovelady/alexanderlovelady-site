@@ -1,0 +1,7 @@
+{
+  "monitor": "Client A website",
+  "status": "down",
+  "url": "https://client-a.example.com",
+  "message": "HTTP 503",
+  "severity": "critical"
+}

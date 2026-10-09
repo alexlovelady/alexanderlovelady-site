@@ -137,6 +137,21 @@
   "expect_valid": "\"dry_run\":true"
  },
  {
+  "pack": "shopify-customer-operations",
+  "workflow": "Shopify 3 - Return Request Intake",
+  "path": "shopify-return",
+  "valid": {
+   "order_number": "#1042",
+   "name": "Dana Cole",
+   "email": "dana@example.test",
+   "item": "Ceramic mug",
+   "reason": "Damaged",
+   "resolution": "Refund",
+   "note": "Handle broke in shipping."
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
   "pack": "etsy-seller-operations",
   "workflow": "Etsy 1 - Log An Order",
   "path": "etsy-order",
@@ -301,6 +316,68 @@
   "expect_valid": "\"dry_run\":true"
  },
  {
+  "pack": "support-ticket-triage",
+  "workflow": "Support 1 - Ticket Intake And Triage",
+  "path": "support-ticket",
+  "valid": {
+   "name": "Casey Dunn",
+   "email": "casey@example.test",
+   "subject": "I was charged twice this month",
+   "message": "Hi, I see two charges for my subscription on my card. Please refund one.",
+   "channel": "Web form"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "support-ticket-triage",
+  "workflow": "Support 2 - Update Ticket",
+  "path": "support-update",
+  "valid": {
+   "ticket_id": "Tabc123",
+   "email": "casey@example.test",
+   "name": "Casey Dunn",
+   "subject": "Billing question",
+   "status": "resolved",
+   "assigned_to": "Sam"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "content-repurposing-studio",
+  "workflow": "Content 1 - Submit Content For Drafting",
+  "path": "content-submit",
+  "valid": {
+   "title": "Episode 42: How we cut onboarding time in half",
+   "transcript": "Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. Today we talk about onboarding. The main thing we learned is that a short checklist beats a long manual. ",
+   "content_url": "https://example.com/episodes/42",
+   "author": "Alex",
+   "tone": "friendly"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "content-repurposing-studio",
+  "workflow": "Content 2 - Approve Or Reject Draft",
+  "path": "content-approve",
+  "valid": {
+   "draft_id": "CNabc123-1",
+   "status": "approved",
+   "scheduled_date": "2026-10-20"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "newsletter-research-publishing",
+  "workflow": "Newsletter 2 - Approve Or Reject Story",
+  "path": "newsletter-approve",
+  "valid": {
+   "story_id": "Sabc123",
+   "status": "approved",
+   "editor_note": "Why it matters: affects our readers' budgets."
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
   "pack": "catering-inquiry-funnel",
   "workflow": "Catering 1 - Event Inquiry Intake",
   "path": "catering-inquiry",
@@ -370,6 +447,19 @@
    "value": 1250.5,
    "date": "2026-10-11",
    "note": "From Stripe daily total"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "incident-alerts",
+  "workflow": "Incident 1 - Uptime Alert Webhook",
+  "path": "incident-alert",
+  "valid": {
+   "monitor": "Client A website",
+   "status": "down",
+   "url": "https://client-a.example.com",
+   "message": "HTTP 503",
+   "severity": "critical"
   },
   "expect_valid": "\"dry_run\":true"
  }

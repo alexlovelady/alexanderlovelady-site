@@ -1,0 +1,1 @@
+invoice_id,customer_id,email,name,amount,amount_display,currency,attempt_count,failed_at,hosted_invoice_url,subscription_id,status,d0_sent,d1_sent,d2_sent,d3_sent,recovered_at,opted_out

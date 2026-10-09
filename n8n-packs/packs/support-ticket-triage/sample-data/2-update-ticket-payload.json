@@ -1,0 +1,8 @@
+{
+  "ticket_id": "Tabc123",
+  "email": "casey@example.test",
+  "name": "Casey Dunn",
+  "subject": "Billing question",
+  "status": "resolved",
+  "assigned_to": "Sam"
+}

@@ -1,0 +1,5 @@
+[
+ {"workflow": "Agency 1 - Deal Won to Onboarding Kickoff", "path": "agency-deal-won", "valid": {"deal_id": "D-1001", "client_name": "Acme Dental", "contact_name": "Jo Lee", "contact_email": "jo@acme.test", "package": "Growth", "kickoff_date": "2026-11-02"}, "expect_valid": "\"dry_run\":true"},
+ {"workflow": "Cleaning 1 - New Lead Instant Estimate", "path": "cleaning-new-lead", "valid": {"name": "Sam Ray", "email": "sam@ray.test", "service": "standard", "bedrooms": 3, "bathrooms": 2, "sqft": 1800, "frequency": "one-time", "zip": "27909"}, "expect_valid": "\"est_low\":230"},
+ {"workflow": "Cleaning 3 - Booking Confirmation", "path": "cleaning-booking", "valid": {"lead_id": "Labc123", "email": "sam@ray.test", "name": "Sam Ray", "date": "2026-10-20", "start_time": "09:30", "duration_hours": 3, "address": "1 Main St"}, "expect_valid": "\"end_iso\":\"2026-10-20T12:30:00\""}
+]

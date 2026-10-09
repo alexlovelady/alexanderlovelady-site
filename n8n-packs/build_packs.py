@@ -17,7 +17,7 @@ from build import (NS, WF, code_node, config_node, error_workflow, gmail, if_nod
                    webhook)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-SYSTEM_KEYS = {"first_name", "today", "id", "route_email", "count", "overdue_count", "window_days", "flagged_count"}
+SYSTEM_KEYS = {"sla_hours", "first_name", "today", "id", "route_email", "count", "overdue_count", "window_days", "flagged_count"}
 COMMON_CFG = {
     "business_name": "YOUR BUSINESS NAME",
     "owner_email": "you@example.com",
@@ -56,6 +56,10 @@ def collect_columns(pack):
         if k == "intake":
             add(rt["sheet"], rt["id_col"], "created_at", *[f["key"] for f in rt["fields"]],
                 *[c["key"] for c in rt.get("extra_cols", [])])
+            if rt.get("sla"):
+                add(rt["sheet"], rt["sla"]["col"], rt["sla"]["date_col"])
+            if rt.get("drafts"):
+                pass
             if rt.get("route", {}).get("store_col"):
                 add(rt["sheet"], rt["route"]["store_col"])
             for t in rt.get("tags", []):
@@ -79,8 +83,6 @@ def collect_columns(pack):
                 for m in rt["metrics"]:
                     src = next(s for s in rt["sources"] if s["name"] == m["source"])
                     add(src["sheet"], m.get("col"), m.get("date_col"))
-        if k == "custom":
-            add(*[None] * 0)
         for sh, names in fl.get("columns", {}).items():
             add(sh, *names)
     return cols
@@ -112,9 +114,9 @@ def check_templates(pack, cols):
     cfg_keys = set(pack["cfg"]) | set(COMMON_CFG)
     for fl in pack["flows"]:
         rt = fl["rt"]
-        sheet = rt.get("sheet") or (rt["sources"][0]["sheet"] if rt.get("sources") else None)
-        allowed = set(SYSTEM_KEYS) | set(cols.get(sheet, []))
-        allowed |= {f["key"] for f in rt.get("fields", [])}
+        sheet = rt.get("sheet") or (rt["sources"][0]["sheet"] if rt.get("sources") else None) or next(iter(fl.get("columns", {})), None)
+        allowed = set(SYSTEM_KEYS) | set(cols.get(sheet, [])) | set(sum((cols.get(sh, []) for sh in fl.get("columns", {})), []))
+        allowed |= {f["key"] for f in rt.get("fields", [])} | set(fl.get("ctx_keys", []))
         for f in rt.get("fields", []):
             if f.get("type") == "date":
                 allowed.add("days_until_" + f["key"])
@@ -185,7 +187,8 @@ def webhook_head(wf, fl, pack):
     webhook(wf, fl["hook"], 0, 0)
     cfg = flow_cfg(pack, fl)
     config_node(wf, cfg, 200, 0)
-    code_node(wf, "Prepare", engine_code(fl["kind"] + ".js"), 400, 0)
+    import customflows
+    code_node(wf, "Prepare", customflows.custom_code(fl["js"]) if fl.get("js") else engine_code(fl["kind"] + ".js"), 400, 0)
     if_node(wf, "Valid and New?", "={{ $json.status }}", "new", 600, 0)
     respond(wf, "Respond: Rejected", "={{ JSON.stringify($json) }}", 800, 160, STATUS_CODE)
     if_node(wf, "Dry Run?", "={{ $json.dry_run }}", "true", 800, -80)
@@ -201,6 +204,10 @@ def build_intake(pack, fl, wfname):
     rt = fl["rt"]
     webhook_head(wf, fl, pack)
     cols = [rt["id_col"], "created_at"] + [f["key"] for f in rt["fields"]] + [c["key"] for c in rt.get("extra_cols", [])]
+    if rt.get("route", {}).get("store_col"):
+        cols.append(rt["route"]["store_col"])
+    if rt.get("sla"):
+        cols += [rt["sla"]["col"], rt["sla"]["date_col"]]
     for t in rt.get("tags", []):
         cols += [k for k in t["set"] if k not in cols]
     for v in rt.get("variants", []):
@@ -213,6 +220,13 @@ def build_intake(pack, fl, wfname):
         gmail(wf, "Send Acknowledgement", "={{ $('Prepare').first().json.ack_to }}", "={{ $('Prepare').first().json.ack_subject }}",
               "={{ $('Prepare').first().json.ack_html }}", x, 0)
         wf.link(prev, "Send Acknowledgement"); prev = "Send Acknowledgement"; x += 200
+    if rt.get("drafts"):
+        wf.add("Create Reply Draft", "n8n-nodes-base.gmail", 2.1,
+               {"resource": "draft", "operation": "create", "subject": "={{ $('Prepare').first().json.draft_subject }}",
+                "emailType": "html", "message": "={{ $('Prepare').first().json.draft_html }}",
+                "options": {"sendTo": "={{ $('Prepare').first().json.draft_to }}"}}, x, 0,
+               notes="Creates a DRAFT for a human to review and send. Connect your Gmail credential.")
+        wf.link(prev, "Create Reply Draft"); prev = "Create Reply Draft"; x += 200
     if rt.get("owner"):
         gmail(wf, "Notify Owner", "={{ $('Prepare').first().json.owner_to }}", "={{ $('Prepare').first().json.owner_subject }}",
               "={{ $('Prepare').first().json.owner_html }}", x, 0)
@@ -315,7 +329,7 @@ def build_pack(pack, extra_builders):
             json.dump(wf.json(), f, indent=2); f.write("\n")
         files.append(fname)
         if fl.get("hook"):
-            sample = {fd["key"]: fd["sample"] for fd in fl["rt"].get("fields", []) if "sample" in fd}
+            sample = fl.get("sample") or {fd["key"]: fd["sample"] for fd in fl["rt"].get("fields", []) if "sample" in fd}
             with open(os.path.join(out, "sample-data", fname.replace(".json", "-payload.json")), "w") as f:
                 json.dump(sample, f, indent=2); f.write("\n")
             manifest.append({"pack": pack["slug"], "workflow": wfname, "path": fl["hook"], "valid": sample,
@@ -338,12 +352,9 @@ def build_pack(pack, extra_builders):
 
 def main():
     names = sorted(m[:-3] for m in os.listdir(os.path.join(ROOT, "packdefs")) if re.match(r"p\d+_.*\.py$", m))
-    extra = {}
-    try:
-        import customflows
-        extra = customflows.BUILDERS
-    except ImportError:
-        pass
+    import customflows
+    customflows.H = sys.modules[__name__]
+    extra = customflows.BUILDERS
     all_errors, manifest, specs = [], [], []
     for n in names:
         mod = importlib.import_module("packdefs." + n)
@@ -358,6 +369,11 @@ def main():
         except ImportError:
             pass
         print("built", pack["slug"], len(pack["flows"]) + 1, "workflows")
+    try:
+        import docs
+        docs.write_catalog(ROOT, [importlib.import_module("packdefs." + n).PACK for n in names])
+    except ImportError:
+        pass
     with open(os.path.join(ROOT, "test", "specs.json"), "w") as f:
         json.dump(specs, f, indent=1)
     with open(os.path.join(ROOT, "test", "e2e-cases.json"), "w") as f:

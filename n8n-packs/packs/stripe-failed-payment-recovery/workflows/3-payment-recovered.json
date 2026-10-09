@@ -1,0 +1,415 @@
+{
+  "id": "f3ad7512d8fa5bcf",
+  "name": "StripeRecovery 3 - Payment Recovered",
+  "nodes": [
+    {
+      "parameters": {
+        "events": [
+          "invoice.paid"
+        ]
+      },
+      "id": "e8c911ff-fc64-5e64-8990-3009bf37b1c3",
+      "name": "Trigger",
+      "type": "n8n-nodes-base.stripeTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "notes": "Connect your Stripe credential."
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR COMPANY\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"billing_portal_url\": \"https://billing.stripe.com/p/login/YOUR-PORTAL-LINK\",\n  \"send_immediate_email\": true,\n  \"send_recovery_email\": true,\n  \"flow\": {\n    \"email\": {\n      \"subject\": \"Thank you, your payment went through\",\n      \"body\": \"Hi {{first_name}},\\n\\nThanks, we received your payment of {{amount_display}} and your account is all set.\\n\\n{{business_name}}\"\n    },\n    \"owner\": {\n      \"subject\": \"Recovered: {{name}} ({{amount_display}})\",\n      \"body\": \"{{name}} ({{email}}) paid the previously failed invoice of {{amount_display}}.\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "6144f2c8-a43e-5fc8-8a33-90417678c311",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FailedPayments",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "98bc77cc-0962-5942-bca9-2ce8a37da3ce",
+      "name": "Read Failed Payments",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// Stripe invoice.paid -> only acts if that invoice is an OPEN row in FailedPayments (everything else is ignored).\nconst store = $getWorkflowStaticData('global');\nconst rows = $('Read Failed Payments').all().map(i => i.json).filter(r => r.invoice_id);\nconst out = [];\nfor (const it of $('Trigger').all()) {\n  const dry = cfg.dry_run === true;\n  const ev = it.json.data && it.json.data.object ? it.json : (it.json.body || it.json);\n  const inv = ev && ev.data && ev.data.object;\n  if (!inv || ev.type !== 'invoice.paid' || !inv.id) { out.push({ json: { status: 'ignored', dry_run: dry } }); continue; }\n  const r = rows.find(x => x.invoice_id === inv.id && lc(x.status) === 'open');\n  if (!r) { out.push({ json: { status: 'ignored', dry_run: dry } }); continue; }\n  if (ev.id && isSeen(store, 'evt|' + ev.id)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry && ev.id) markSeen(store, 'evt|' + ev.id);\n  const ctx = { first_name: String(r.name || '').trim().split(/\\s+/)[0] || 'there', amount_display: r.amount_display, name: r.name || r.email, email: r.email };\n  const sendThanks = flow.email && isEmail(r.email) && cfg.send_recovery_email !== false;\n  out.push({ json: {\n    status: 'new', dry_run: dry, id: inv.id, row: { invoice_id: inv.id, status: 'recovered', recovered_at: today },\n    mail_to: sendThanks ? r.email : '', mail_subject: flow.email ? renderText(flow.email.subject, ctx) : '', mail_html: flow.email ? render(flow.email.body, ctx) : '',\n    owner_to: cfg.owner_email, owner_subject: renderText(flow.owner.subject, ctx), owner_html: render(flow.owner.body, ctx),\n  } });\n}\nreturn out;\n"
+      },
+      "id": "befca780-84f0-5c25-81b8-2ea00a59291c",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "cb75bab9-e2d8-599c-9817-821ae01573ca",
+      "name": "Dry Run Preview",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        -300
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "de921cd1-fdcf-5e43-9143-4d8ccf0cef97",
+      "name": "Ignored",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2000,
+        600
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8167af1e-214e-56a9-b2ee-e908a979f40c",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8167af1e-214e-56a9-b2ee-e908a979f40c",
+      "name": "Is new?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a53a687a-f523-5ae2-b283-7effae2bb84a",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a53a687a-f523-5ae2-b283-7effae2bb84a",
+      "name": "Dry Run? (new)",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FailedPayments",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "invoice_id": "={{ $('Prepare').first().json.row[\"invoice_id\"] }}",
+            "status": "={{ $('Prepare').first().json.row[\"status\"] }}",
+            "recovered_at": "={{ $('Prepare').first().json.row[\"recovered_at\"] }}"
+          },
+          "matchingColumns": [
+            "invoice_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "c3cf9526-2795-58df-9f8c-66b6fa35852e",
+      "name": "Mark Recovered",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1200,
+        -100
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9a0426d2-0007-5574-a89b-905af90a333f",
+              "leftValue": "={{ String(!!$('Prepare').first().json.mail_to) }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9a0426d2-0007-5574-a89b-905af90a333f",
+      "name": "If Thank Customer",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        -100
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.mail_to }}",
+        "subject": "={{ $('Prepare').first().json.mail_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.mail_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "e7e9dea3-f247-546d-abe2-ca08a47a68a0",
+      "name": "Thank Customer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1600,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "df577d0e-0e29-53cf-91c6-bc6ef654c657",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1800,
+        -100
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Failed Payments",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Failed Payments": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Is new?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is new?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run? (new)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ignored",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run? (new)": {
+      "main": [
+        [
+          {
+            "node": "Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Recovered",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Recovered": {
+      "main": [
+        [
+          {
+            "node": "If Thank Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Thank Customer": {
+      "main": [
+        [
+          {
+            "node": "Thank Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Thank Customer": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "cdfe3e7f-979c-5f89-9f26-37289e08b0ea",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

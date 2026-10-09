@@ -1,4 +1,6 @@
-# n8n Packs — Listing Pack (Gumroad / Etsy / n8n community where allowed)
+# n8n Packs: Listing Pack for the first two packs (Gumroad / Etsy / n8n community where allowed)
+
+The other 18 packs each have a generated `packs/<slug>/LISTING.md`, and `CATALOG.md` lists all 20.
 
 Two packs built. Prices are test hypotheses, not market-verified. Competitor evidence in the plan: bulk bundles sell for ~$15 with visible sales; curated, outcome-specific packs are the differentiator, so lead with the outcome and the tested setup, not the node count.
 

@@ -1,0 +1,161 @@
+{
+  "id": "715df7b3fc395947",
+  "name": "Support 3 - SLA Breach Watch",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9,15 * * 1-5"
+            }
+          ]
+        }
+      },
+      "id": "64f9c836-d0ef-5ea1-9b97-e957b8392a0f",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR COMPANY\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"sla_hours\": {\n    \"high\": 4,\n    \"normal\": 24,\n    \"low\": 72,\n    \"default\": 24\n  },\n  \"flow\": {\n    \"mode\": \"list\",\n    \"sources\": [\n      {\n        \"name\": \"tickets\",\n        \"sheet\": \"Tickets\",\n        \"key_col\": \"ticket_id\",\n        \"node\": \"Read Tickets\"\n      }\n    ],\n    \"list\": {\n      \"source\": \"tickets\",\n      \"where\": [\n        {\n          \"not\": {\n            \"field\": \"status\",\n            \"in\": [\n              \"resolved\",\n              \"closed\"\n            ]\n          }\n        }\n      ],\n      \"date_col\": \"sla_date\",\n      \"within_days\": 0,\n      \"columns\": [\n        \"ticket_id\",\n        \"name\",\n        \"subject\",\n        \"priority\",\n        \"status\",\n        \"sla_due\"\n      ]\n    },\n    \"subject\": \"{{count}} ticket(s) due or past due ({{overdue_count}} overdue)\",\n    \"intro\": \"Open tickets at or past their response target:\"\n  }\n}",
+        "options": {}
+      },
+      "id": "e054f15d-5d41-53cf-abf9-a64ebe0b8fb3",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Tickets",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "6442663e-df44-5abc-a621-7a54e07442ee",
+      "name": "Read Tickets",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential.",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// DIGEST: scheduled summary email. mode \"list\" = rows needing attention (optionally one email per person);\n// mode \"metrics\" = counts/sums over a recent window with change vs the previous window and optional drop alerts.\nconst data = {};\nfor (const s of flow.sources) data[s.name] = $(s.node).all().map(i => i.json).filter(r => r[s.key_col]);\nconst out = [];\nconst inWindow = (r, col, fromDay, toDay) => { const d = ymdOf(r[col]); return isYmd(d) && d >= fromDay && d <= toDay; };\nconst table = (rows, cols) => '<table cellpadding=\"6\" style=\"border-collapse:collapse;font-family:sans-serif;font-size:14px\"><tr>' +\n  cols.map(c => `<th align=\"left\" style=\"border-bottom:1px solid #ccc\">${esc(c.label ?? c)}</th>`).join('') + '</tr>' +\n  rows.map(r => '<tr>' + cols.map(c => `<td style=\"border-bottom:1px solid #eee\">${esc(r[c.key || c])}</td>`).join('') + '</tr>').join('') + '</table>';\n\nif (flow.mode === 'list') {\n  const L = flow.list;\n  const from = L.min_days != null ? addDays(today, L.min_days) : '0000-01-01';\n  const to = L.within_days != null ? addDays(today, L.within_days) : '9999-12-31';\n  let rows = (data[L.source] || []).filter(r => match(L.where, r));\n  if (L.date_col) rows = rows.filter(r => inWindow(r, L.date_col, from, to));\n  rows = rows.map(r => ({ ...r, overdue: L.date_col && ymdOf(r[L.date_col]) < today ? 'OVERDUE' : '' }));\n  if (L.date_col) rows.sort((a, b) => ymdOf(a[L.date_col]).localeCompare(ymdOf(b[L.date_col])));\n  const groups = {};\n  for (const r of rows) {\n    const to_ = L.group_by ? String(r[L.group_by] || '').trim() : (L.to_cfg ? get(cfg, L.to_cfg) : cfg.owner_email);\n    if (!isEmail(to_)) continue;\n    (groups[to_] = groups[to_] || []).push(r);\n  }\n  for (const [email, list] of Object.entries(groups)) {\n    const ctx = { count: list.length, overdue_count: list.filter(r => r.overdue).length, today };\n    const cols = L.columns.map(c => (typeof c === 'string' ? { key: c, label: c.replace(/_/g, ' ') } : c));\n    if (L.date_col) cols.push({ key: 'overdue', label: '' });\n    out.push({ json: { to: email, count: list.length, overdue_count: ctx.overdue_count,\n      subject: renderText(flow.subject, ctx),\n      html: render(flow.intro || '', ctx) + table(list, cols) + (flow.outro ? render(flow.outro, ctx) : '') } });\n  }\n  return out;\n}\n\n// metrics mode\nconst w = flow.window_days || 7;\nconst end = addDays(today, flow.end_offset_days || 0);\nconst curFrom = addDays(end, -(w - 1)), prevFrom = addDays(end, -(2 * w - 1)), prevTo = addDays(end, -w);\nconst lines = []; const values = [];\nfor (const m of flow.metrics) {\n  const rows = (data[m.source] || []).filter(r => match(m.where, r));\n  const calc = (a, b) => { const sel = m.date_col ? rows.filter(r => inWindow(r, m.date_col, a, b)) : rows; return m.op === 'sum' ? sel.reduce((t, r) => t + (parseFloat(r[m.col]) || 0), 0) : m.op === 'avg' ? (sel.length ? sel.reduce((t, r) => t + (parseFloat(r[m.col]) || 0), 0) / sel.length : 0) : sel.length; };\n  const cur = calc(curFrom, end), prev = m.date_col ? calc(prevFrom, prevTo) : null;\n  const fmt = x => (m.format === 'money' ? fmtMoney(x) : (Math.round(x * 100) / 100).toString());\n  const change = prev == null ? '' : prev === 0 ? (cur === 0 ? 'no change' : 'new') : ((cur - prev) / prev * 100 >= 0 ? '+' : '') + Math.round((cur - prev) / prev * 100) + '%';\n  const flagged = !!(m.alert_drop_pct && prev > 0 && (prev - cur) / prev * 100 >= m.alert_drop_pct);\n  values.push(cur);\n  const spike = !!(m.alert_rise_pct && prev > 0 && (cur - prev) / prev * 100 >= m.alert_rise_pct);\n  lines.push({ label: m.label, value: fmt(cur), prev: prev == null ? '' : fmt(prev), change, flagged: flagged ? 'DROP' : spike ? 'SPIKE' : '' });\n}\nfor (const rt of flow.ratios || []) {\n  if (rt.op === 'diff') { const d = values[rt.a] - values[rt.b]; lines.push({ label: rt.label, value: rt.format === 'money' ? fmtMoney(d) : String(Math.round(d * 100) / 100), prev: '', change: '', flagged: '' }); continue; }\n  const num = values[rt.num], den = values[rt.den];\n  lines.push({ label: rt.label, value: den > 0 ? Math.round(num / den * 1000) / 10 + '%' : 'n/a', prev: '', change: '', flagged: '' });\n}\nif (flow.skip_if_all_zero && values.every(x => !x)) return [];\nif (flow.only_if_flagged && !lines.some(l => l.flagged)) return [];\nconst ctx = { today, window_days: w, flagged_count: lines.filter(l => l.flagged).length };\nout.push({ json: { to: cfg.owner_email, flagged: ctx.flagged_count, subject: renderText(flow.subject, ctx),\n  html: render(flow.intro || '', ctx) + table(lines, [{ key: 'label', label: 'Measure' }, { key: 'value', label: `Last ${w} days` }, { key: 'prev', label: 'Previous' }, { key: 'change', label: 'Change' }, { key: 'flagged', label: '' }]) + (flow.outro ? render(flow.outro, ctx) : '') } });\nreturn out;\n"
+      },
+      "id": "a9de0b7c-ea20-55d0-a5a1-ab9ef215b234",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "emailType": "html",
+        "message": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "c7d84737-6b02-58e5-8d8d-d4e8fce39dd1",
+      "name": "Send Digest",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        800,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Read Tickets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Tickets": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Send Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "b02e71f0-9f98-5d88-baeb-c896fe36f9c5",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

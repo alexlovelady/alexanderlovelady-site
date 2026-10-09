@@ -1,0 +1,1 @@
+incident_id,monitor,client,url,severity,status,opened_at,message,closed_at,duration_min,alerts_sent
