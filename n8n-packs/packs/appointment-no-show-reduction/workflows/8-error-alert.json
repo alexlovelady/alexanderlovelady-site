@@ -1,0 +1,90 @@
+{
+  "id": "f8b72f822ae657b5",
+  "name": "NoShow 8 - Error Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c5d7f67f-1795-50f0-bab8-e47160502f3e",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR BUSINESS\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"(555) 000-0000\",\n  \"reschedule_link\": \"https://example.com/reschedule\",\n  \"booking_link\": \"https://example.com/book\"\n}",
+        "options": {}
+      },
+      "id": "a203b4ae-b7ec-5269-9ab0-09ba7ae862f9",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "=n8n workflow failed: {{ $('Error Trigger').first().json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<p>Workflow <strong>{{ $('Error Trigger').first().json.workflow.name }}</strong> failed at node <strong>{{ $('Error Trigger').first().json.execution.lastNodeExecuted }}</strong>.</p><p>{{ $('Error Trigger').first().json.execution.error.message }}</p><p>Execution: {{ $('Error Trigger').first().json.execution.url }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8354ef41-f2e6-5626-afa1-e4cc30a31688",
+      "name": "Email Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Email Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "235923c0-fe88-5899-8dae-f7efc59886aa",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

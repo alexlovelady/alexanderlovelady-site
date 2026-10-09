@@ -1,0 +1,5070 @@
+[
+ {
+  "slug": "contractor-quote-followup",
+  "cfg": {
+   "business_name": "YOUR CONTRACTING BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "estimators": {
+    "electrical": "electrician@example.com",
+    "plumbing": "plumber@example.com"
+   }
+  },
+  "flows": [
+   {
+    "id": "intake",
+    "kind": "intake",
+    "title": "Estimate Request Intake",
+    "lite": true,
+    "hook": "contractor-request",
+    "rt": {
+     "sheet": "Requests",
+     "id_col": "request_id",
+     "id_prefix": "Q",
+     "dedupe": [
+      "email",
+      "project_type"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Dana Cole"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "dana@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0142"
+      },
+      {
+       "key": "project_type",
+       "type": "select",
+       "required": true,
+       "sample": "Remodel",
+       "options": [
+        "Remodel",
+        "Electrical",
+        "Plumbing",
+        "Roofing",
+        "HVAC",
+        "Painting",
+        "Other"
+       ]
+      },
+      {
+       "key": "zip",
+       "sample": "27909",
+       "max_length": 10
+      },
+      {
+       "key": "budget_range",
+       "type": "select",
+       "default": "Not sure",
+       "sample": "$10k-$30k",
+       "options": [
+        "Under $2k",
+        "$2k-$10k",
+        "$10k-$30k",
+        "$30k+",
+        "Not sure"
+       ]
+      },
+      {
+       "key": "timeline",
+       "type": "select",
+       "default": "Just planning",
+       "sample": "ASAP",
+       "options": [
+        "ASAP",
+        "1-3 months",
+        "3+ months",
+        "Just planning"
+       ]
+      },
+      {
+       "key": "description",
+       "required": true,
+       "max_length": 1000,
+       "sample": "Kitchen remodel, about 200 sq ft."
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      },
+      {
+       "key": "priority",
+       "value": "normal"
+      },
+      {
+       "key": "quote_sent_at",
+       "value": ""
+      },
+      {
+       "key": "quote_amount",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "tags": [
+      {
+       "when": {
+        "field": "timeline",
+        "equals": "ASAP"
+       },
+       "set": {
+        "priority": "high"
+       }
+      }
+     ],
+     "route": {
+      "by": "project_type",
+      "map_cfg": "estimators",
+      "default_cfg": "owner_email"
+     },
+     "ack": {
+      "subject": "We got your {{project_type}} request, {{first_name}}",
+      "body": "Hi {{first_name}},\n\nThanks for contacting {{business_name}}. We received your request about: {{description}}\n\nSomeone will review the details and contact you, usually within one business day. If it's urgent, call us at {{business_phone}}.\n\nWe'll follow up about an estimate. Reply STOP if you do not want follow-up emails.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "[{{priority}}] New {{project_type}} request from {{name}}",
+      "body": "{{name}} ({{email}}, {{phone}}) wants a {{project_type}} estimate.\n\nZIP {{zip}} / budget {{budget_range}} / timeline {{timeline}}\n\n{{description}}\n\nRequest ID: {{id}}\n\nWhen you send your quote, set status to 'quoted' and fill quote_sent_at (YYYY-MM-DD) in the Requests sheet to start automatic follow-ups."
+     }
+    },
+    "n": 1,
+    "wfname": "Contractor 1 - Estimate Request Intake",
+    "file": "1-estimate-request-intake.json"
+   },
+   {
+    "id": "followups",
+    "kind": "sequence",
+    "title": "Quote Follow-Ups",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Requests",
+     "key_col": "request_id",
+     "date_col": "quote_sent_at",
+     "base_status": [
+      "quoted"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "fu1_sent",
+       "offset_days": 2,
+       "window_days": 3,
+       "marketing": true,
+       "subject": "Any questions about your {{project_type}} estimate?",
+       "body": "Hi {{first_name}},\n\nJust checking in on the estimate we sent for your {{project_type}} project. Happy to answer questions or adjust the scope to fit your budget.\n\nReply to this email or call {{business_phone}}.\n\n{{business_name}}"
+      },
+      {
+       "flag": "fu2_sent",
+       "offset_days": 5,
+       "window_days": 4,
+       "marketing": true,
+       "subject": "Still planning your {{project_type}} project?",
+       "body": "Hi {{first_name}},\n\nI wanted to follow up once more on your estimate. Our schedule fills up, and I'd like to hold a start date for you if you're ready.\n\nWould you like to go ahead, or would a call help?\n\n{{business_name}}"
+      },
+      {
+       "flag": "fu3_sent",
+       "offset_days": 10,
+       "window_days": 20,
+       "marketing": true,
+       "subject": "Closing out your {{project_type}} estimate",
+       "body": "Hi {{first_name}},\n\nI'm closing out older estimates this week. If you'd still like to move forward, just reply and we'll pick it up. If not, thanks for considering {{business_name}}.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Requests"
+    },
+    "n": 2,
+    "wfname": "Contractor 2 - Quote Follow-Ups",
+    "file": "2-quote-follow-ups.json"
+   },
+   {
+    "id": "accepted",
+    "kind": "event",
+    "title": "Quote Accepted",
+    "lite": false,
+    "hook": "contractor-accepted",
+    "rt": {
+     "sheet": "Requests",
+     "key_col": "request_id",
+     "key_field": "request_id",
+     "set": {
+      "status": "accepted"
+     },
+     "fields": [
+      {
+       "key": "request_id",
+       "required": true,
+       "sample": "Qabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "dana@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Dana Cole",
+       "write": false
+      },
+      {
+       "key": "project_type",
+       "sample": "Remodel",
+       "write": false
+      },
+      {
+       "key": "address",
+       "sample": "12 Oak St",
+       "write": false
+      },
+      {
+       "key": "amount",
+       "type": "number",
+       "min": 0,
+       "col": "quote_amount",
+       "sample": 18500
+      },
+      {
+       "key": "start_date",
+       "type": "date",
+       "col": "start_date",
+       "sample": "2026-11-16"
+      }
+     ],
+     "email": {
+      "subject": "Welcome aboard, {{first_name}}: next steps for your {{project_type}} project",
+      "body": "Hi {{first_name}},\n\nThank you for choosing {{business_name}}. Your project is scheduled to start {{start_date}}.\n\nNext steps:\n1. We'll send the agreement and deposit details.\n2. We'll confirm access and materials.\n3. We'll call you before the start date.\n\nQuestions? {{business_phone}}.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "JOB ACCEPTED: {{name}} ({{project_type}}) starts {{start_date}}",
+      "body": "{{name}} accepted the quote for {{project_type}} at {{address}}.\n\nAmount: {{amount}}\nStart date: {{start_date}}\nRequest: {{request_id}}\n\nHandoff checklist: send agreement and deposit invoice, order materials, schedule crew, confirm site access."
+     }
+    },
+    "expect_valid": "\"dry_run\":true",
+    "n": 3,
+    "wfname": "Contractor 3 - Quote Accepted",
+    "file": "3-quote-accepted.json"
+   },
+   {
+    "id": "stale",
+    "kind": "digest",
+    "title": "Requests Waiting For A Quote",
+    "lite": false,
+    "cron": "0 8 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "requests",
+       "sheet": "Requests",
+       "key_col": "request_id",
+       "node": "Read Requests"
+      }
+     ],
+     "list": {
+      "source": "requests",
+      "where": [
+       {
+        "field": "status",
+        "equals": "new"
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": -1,
+      "columns": [
+       "name",
+       "project_type",
+       "priority",
+       "created_at"
+      ]
+     },
+     "subject": "{{count}} request(s) still waiting for a quote",
+     "intro": "These requests came in at least a day ago and have no quote yet. Fast replies win jobs."
+    },
+    "test_rows": {
+     "requests": [
+      {
+       "request_id": "Q1",
+       "name": "Old One",
+       "status": "new",
+       "created_at": "2026-10-08",
+       "project_type": "Roofing",
+       "priority": "high"
+      },
+      {
+       "request_id": "Q2",
+       "name": "Fresh",
+       "status": "new",
+       "created_at": "2026-10-12",
+       "project_type": "HVAC",
+       "priority": "normal"
+      },
+      {
+       "request_id": "Q3",
+       "name": "Quoted",
+       "status": "quoted",
+       "created_at": "2026-10-01",
+       "project_type": "HVAC",
+       "priority": "normal"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Contractor 4 - Requests Waiting For A Quote",
+    "file": "4-requests-waiting-for-a-quote.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Pipeline Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "requests",
+       "sheet": "Requests",
+       "key_col": "request_id",
+       "node": "Read Requests"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New requests",
+       "source": "requests",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Open quotes",
+       "source": "requests",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "quoted"
+        }
+       ]
+      },
+      {
+       "label": "Jobs accepted",
+       "source": "requests",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "accepted"
+        }
+       ]
+      },
+      {
+       "label": "Accepted value",
+       "source": "requests",
+       "op": "sum",
+       "col": "quote_amount",
+       "date_col": "updated_at",
+       "format": "money",
+       "where": [
+        {
+         "field": "status",
+         "equals": "accepted"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly pipeline: {{flagged_count}} alert(s)",
+     "intro": "Pipeline summary for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "requests": [
+      {
+       "request_id": "Q1",
+       "status": "accepted",
+       "created_at": "2026-10-05",
+       "updated_at": "2026-10-11",
+       "quote_amount": "12000"
+      },
+      {
+       "request_id": "Q2",
+       "status": "quoted",
+       "created_at": "2026-10-10",
+       "updated_at": "",
+       "quote_amount": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 5,
+    "wfname": "Contractor 5 - Weekly Pipeline Report",
+    "file": "5-weekly-pipeline-report.json"
+   }
+  ],
+  "cols": {
+   "Requests": [
+    "request_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "project_type",
+    "zip",
+    "budget_range",
+    "timeline",
+    "description",
+    "status",
+    "priority",
+    "quote_sent_at",
+    "quote_amount",
+    "opted_out",
+    "fu1_sent",
+    "fu2_sent",
+    "fu3_sent",
+    "updated_at",
+    "start_date"
+   ]
+  }
+ },
+ {
+  "slug": "mobile-detailer-booking",
+  "cfg": {
+   "business_name": "YOUR DETAILING BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "deposit_link": "https://example.com/pay-deposit",
+   "review_link": "https://g.page/r/YOUR-REVIEW-LINK",
+   "deposit_amount": "$50"
+  },
+  "flows": [
+   {
+    "id": "intake",
+    "kind": "intake",
+    "title": "Booking Request Intake",
+    "lite": true,
+    "hook": "detailer-request",
+    "rt": {
+     "sheet": "Bookings",
+     "id_col": "booking_id",
+     "id_prefix": "D",
+     "dedupe": [
+      "email",
+      "appt_date"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Chris Park"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "chris@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0177"
+      },
+      {
+       "key": "service",
+       "type": "select",
+       "required": true,
+       "sample": "Full Detail",
+       "options": [
+        "Wash & Wax",
+        "Interior Detail",
+        "Full Detail",
+        "Ceramic Coating",
+        "Other"
+       ]
+      },
+      {
+       "key": "vehicle",
+       "required": true,
+       "sample": "2021 Honda CR-V",
+       "max_length": 80
+      },
+      {
+       "key": "location",
+       "sample": "12 Oak St",
+       "max_length": 200
+      },
+      {
+       "key": "appt_date",
+       "type": "date",
+       "required": true,
+       "min_days_ahead": 0,
+       "sample": "2026-10-24"
+      },
+      {
+       "key": "notes",
+       "max_length": 500,
+       "sample": "Pet hair in the back seat"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "requested"
+      },
+      {
+       "key": "deposit_paid",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "ack": {
+      "subject": "We got your {{service}} request for {{appt_date}}",
+      "body": "Hi {{first_name}},\n\nThanks for requesting a {{service}} for your {{vehicle}} on {{appt_date}}.\n\nWe'll confirm your time shortly. To hold the slot we ask for a {{deposit_amount}} deposit once we confirm.\n\nQuestions? {{business_phone}}.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "New booking request: {{name}}, {{service}} on {{appt_date}}",
+      "body": "{{name}} ({{email}}, {{phone}}) wants a {{service}} for a {{vehicle}} on {{appt_date}} at {{location}}.\n\nNotes: {{notes}}\n\nBooking ID: {{id}}\n\nTo confirm, call the 'Confirm Booking' webhook or set status to 'booked' in the Bookings sheet."
+     }
+    },
+    "n": 1,
+    "wfname": "Detailer 1 - Booking Request Intake",
+    "file": "1-booking-request-intake.json"
+   },
+   {
+    "id": "confirm",
+    "kind": "event",
+    "title": "Confirm Booking",
+    "lite": true,
+    "hook": "detailer-confirm",
+    "rt": {
+     "sheet": "Bookings",
+     "key_col": "booking_id",
+     "key_field": "booking_id",
+     "set": {
+      "status": "booked"
+     },
+     "set_today": [
+      "confirmed_at"
+     ],
+     "fields": [
+      {
+       "key": "booking_id",
+       "required": true,
+       "sample": "Dabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "chris@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Chris Park",
+       "write": false
+      },
+      {
+       "key": "service",
+       "sample": "Full Detail",
+       "write": false
+      },
+      {
+       "key": "appt_date",
+       "type": "date",
+       "required": true,
+       "sample": "2026-10-24"
+      },
+      {
+       "key": "appt_time",
+       "type": "time",
+       "required": true,
+       "sample": "09:00"
+      }
+     ],
+     "email": {
+      "subject": "Confirmed: {{service}} on {{appt_date}} at {{appt_time}}",
+      "body": "Hi {{first_name}},\n\nYou're confirmed for {{appt_date}} at {{appt_time}}.\n\nPlease pay the {{deposit_amount}} deposit here to hold your slot: {{deposit_link}}\n\nPlease clear personal items from the car and make sure we have access to water and power if it's a mobile job.\n\n{{business_name}}"
+     }
+    },
+    "n": 2,
+    "wfname": "Detailer 2 - Confirm Booking",
+    "file": "2-confirm-booking.json"
+   },
+   {
+    "id": "deposit",
+    "kind": "sequence",
+    "title": "Deposit Reminders",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Bookings",
+     "key_col": "booking_id",
+     "date_col": "confirmed_at",
+     "base_status": [
+      "booked"
+     ],
+     "stop_cols": {
+      "deposit_paid": "yes",
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "dep1_sent",
+       "offset_days": 1,
+       "window_days": 2,
+       "subject": "Reminder: deposit to hold your {{appt_date}} detail",
+       "body": "Hi {{first_name}},\n\nA quick reminder to pay the {{deposit_amount}} deposit so we can hold your {{appt_date}} slot: {{deposit_link}}\n\nIf your plans changed, just reply and we'll free up the time.\n\n{{business_name}}"
+      },
+      {
+       "flag": "dep2_sent",
+       "offset_days": 3,
+       "window_days": 10,
+       "subject": "Last reminder: deposit for {{appt_date}}",
+       "body": "Hi {{first_name}},\n\nWe haven't received your deposit for {{appt_date}} yet. If we don't hear from you, we may release the slot to someone else. Pay here: {{deposit_link}}\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Bookings"
+    },
+    "n": 3,
+    "wfname": "Detailer 3 - Deposit Reminders",
+    "file": "3-deposit-reminders.json"
+   },
+   {
+    "id": "reminders",
+    "kind": "sequence",
+    "title": "Appointment Reminders",
+    "lite": false,
+    "cron": "0 17 * * *",
+    "rt": {
+     "sheet": "Bookings",
+     "key_col": "booking_id",
+     "date_col": "appt_date",
+     "base_status": [
+      "booked"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "rem2_sent",
+       "offset_days": -2,
+       "window_days": 0,
+       "subject": "Your detail is in 2 days: how to prepare",
+       "body": "Hi {{first_name}},\n\nYour {{service}} is on {{appt_date}}. To get the best result: remove valuables and trash, and let us know about any problem areas.\n\n{{business_name}}"
+      },
+      {
+       "flag": "rem1_sent",
+       "offset_days": -1,
+       "window_days": 0,
+       "subject": "Tomorrow: your {{service}}",
+       "body": "Hi {{first_name}},\n\nSee you tomorrow, {{appt_date}}. Need to change something? Reply here or call {{business_phone}}.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Bookings"
+    },
+    "n": 4,
+    "wfname": "Detailer 4 - Appointment Reminders",
+    "file": "4-appointment-reminders.json"
+   },
+   {
+    "id": "review",
+    "kind": "sequence",
+    "title": "Thank You And Review Request",
+    "lite": false,
+    "cron": "0 11 * * *",
+    "rt": {
+     "sheet": "Bookings",
+     "key_col": "booking_id",
+     "date_col": "appt_date",
+     "base_status": [
+      "completed"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "review_sent",
+       "offset_days": 1,
+       "window_days": 7,
+       "marketing": true,
+       "subject": "How did we do, {{first_name}}?",
+       "body": "Hi {{first_name}},\n\nThank you for choosing {{business_name}} for your {{vehicle}}. We'd love your honest feedback. If you'd like to leave a public review: {{review_link}}\n\nIf anything wasn't right, reply and we'll make it right.\n\n{{business_name}}"
+      },
+      {
+       "flag": "rebook_sent",
+       "offset_days": 60,
+       "window_days": 30,
+       "marketing": true,
+       "subject": "Time for another detail?",
+       "body": "Hi {{first_name}},\n\nIt's been a couple of months since we detailed your {{vehicle}}. Want to book a refresh? Reply with a date that works.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Bookings"
+    },
+    "n": 5,
+    "wfname": "Detailer 5 - Thank You And Review Request",
+    "file": "5-thank-you-and-review-request.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Bookings Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "bookings",
+       "sheet": "Bookings",
+       "key_col": "booking_id",
+       "node": "Read Bookings"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New requests",
+       "source": "bookings",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Confirmed",
+       "source": "bookings",
+       "op": "count",
+       "date_col": "confirmed_at"
+      },
+      {
+       "label": "Waiting on deposit",
+       "source": "bookings",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "booked"
+        },
+        {
+         "not": {
+          "field": "deposit_paid",
+          "equals": "yes"
+         }
+        }
+       ]
+      },
+      {
+       "label": "Completed jobs",
+       "source": "bookings",
+       "op": "count",
+       "date_col": "appt_date",
+       "where": [
+        {
+         "field": "status",
+         "equals": "completed"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly detailing report ({{flagged_count}} alert(s))",
+     "intro": "Bookings summary for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "bookings": [
+      {
+       "booking_id": "D1",
+       "status": "booked",
+       "deposit_paid": "",
+       "created_at": "2026-10-08",
+       "confirmed_at": "2026-10-09",
+       "appt_date": "2026-10-20"
+      },
+      {
+       "booking_id": "D2",
+       "status": "completed",
+       "deposit_paid": "yes",
+       "created_at": "2026-10-01",
+       "confirmed_at": "2026-10-02",
+       "appt_date": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 6,
+    "wfname": "Detailer 6 - Weekly Bookings Report",
+    "file": "6-weekly-bookings-report.json"
+   }
+  ],
+  "cols": {
+   "Bookings": [
+    "booking_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "service",
+    "vehicle",
+    "location",
+    "appt_date",
+    "notes",
+    "status",
+    "deposit_paid",
+    "opted_out",
+    "updated_at",
+    "appt_time",
+    "confirmed_at",
+    "dep1_sent",
+    "dep2_sent",
+    "rem2_sent",
+    "rem1_sent",
+    "review_sent",
+    "rebook_sent"
+   ]
+  }
+ },
+ {
+  "slug": "real-estate-lead-response",
+  "cfg": {
+   "business_name": "YOUR NAME, REALTOR",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "agent_name": "Your Name",
+   "brokerage": "Your Brokerage",
+   "business_phone": "(555) 000-0000",
+   "calendar_link": "https://example.com/book-a-call"
+  },
+  "flows": [
+   {
+    "id": "intake",
+    "kind": "intake",
+    "title": "Lead Intake And Instant Reply",
+    "lite": true,
+    "hook": "realestate-lead",
+    "rt": {
+     "sheet": "Leads",
+     "id_col": "lead_id",
+     "id_prefix": "RE",
+     "dedupe": [
+      "email",
+      "interest"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Taylor Brooks"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "taylor@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0188"
+      },
+      {
+       "key": "interest",
+       "type": "select",
+       "required": true,
+       "sample": "Buying",
+       "options": [
+        "Buying",
+        "Selling",
+        "Renting",
+        "Buying and selling"
+       ]
+      },
+      {
+       "key": "area",
+       "max_length": 120,
+       "sample": "Elizabeth City"
+      },
+      {
+       "key": "price_range",
+       "max_length": 60,
+       "sample": "$250k-$350k"
+      },
+      {
+       "key": "timeline",
+       "type": "select",
+       "default": "Just browsing",
+       "sample": "1-3 months",
+       "options": [
+        "Now",
+        "1-3 months",
+        "3-6 months",
+        "6+ months",
+        "Just browsing"
+       ]
+      },
+      {
+       "key": "source",
+       "type": "select",
+       "default": "Website",
+       "sample": "Website",
+       "options": [
+        "Website",
+        "Zillow",
+        "Realtor.com",
+        "Open house",
+        "Referral",
+        "Other"
+       ]
+      },
+      {
+       "key": "message",
+       "max_length": 800,
+       "sample": "Looking for a 3 bedroom near the water."
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      },
+      {
+       "key": "priority",
+       "value": "normal"
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "tags": [
+      {
+       "when": {
+        "field": "timeline",
+        "in": [
+         "Now",
+         "1-3 months"
+        ]
+       },
+       "set": {
+        "priority": "hot"
+       }
+      }
+     ],
+     "ack": {
+      "subject": "Thanks for reaching out, {{first_name}}",
+      "body": "Hi {{first_name}},\n\nThanks for contacting {{agent_name}} at {{brokerage}} about {{interest}} in {{area}}. I'll personally review what you shared and reach out soon.\n\nIf you'd like to talk right away, pick a time here: {{calendar_link}} or call {{business_phone}}.\n\n{{agent_name}}\n{{brokerage}}"
+     },
+     "owner": {
+      "subject": "[{{priority}}] New lead: {{name}} ({{interest}}, {{timeline}})",
+      "body": "{{name}} ({{email}}, {{phone}}) from {{source}}\n\nInterest: {{interest}} in {{area}}, {{price_range}}\nTimeline: {{timeline}}\n\n{{message}}\n\nLead ID: {{id}}\n\nCall within 5 minutes if you can. After first contact, set status to 'contacted' in the Leads sheet."
+     }
+    },
+    "tests": [
+     {
+      "name": "hot lead",
+      "set": {
+       "timeline": "Now"
+      },
+      "expect_row": {
+       "priority": "hot"
+      }
+     },
+     {
+      "name": "browsing lead stays normal",
+      "set": {
+       "timeline": "Just browsing"
+      },
+      "expect_row": {
+       "priority": "normal"
+      }
+     }
+    ],
+    "n": 1,
+    "wfname": "RealEstate 1 - Lead Intake And Instant Reply",
+    "file": "1-lead-intake-and-instant-reply.json"
+   },
+   {
+    "id": "nurture",
+    "kind": "sequence",
+    "title": "Lead Nurture Sequence",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Leads",
+     "key_col": "lead_id",
+     "date_col": "created_at",
+     "base_status": [
+      "new",
+      "contacted",
+      "nurture"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "n1_sent",
+       "offset_days": 1,
+       "window_days": 2,
+       "marketing": true,
+       "subject": "Quick question, {{first_name}}",
+       "body": "Hi {{first_name}},\n\nI wanted to make sure you got my note. To point you to the right homes, it would help to know: what matters most in your search (location, size, budget)? Just reply with a line or two.\n\n{{agent_name}}, {{brokerage}}"
+      },
+      {
+       "flag": "n2_sent",
+       "offset_days": 3,
+       "window_days": 3,
+       "marketing": true,
+       "subject": "Want a short call?",
+       "body": "Hi {{first_name}},\n\nIf a 10-minute call is easier than email, you can book one here: {{calendar_link}}\n\n{{agent_name}}"
+      },
+      {
+       "flag": "n3_sent",
+       "offset_days": 7,
+       "window_days": 5,
+       "marketing": true,
+       "subject": "A few things buyers and sellers often ask first",
+       "body": "Hi {{first_name}},\n\nCommon first questions: how the process works, what it costs, and how long it takes. I'm happy to walk you through any of them with no obligation. Just reply with your question.\n\n{{agent_name}}"
+      },
+      {
+       "flag": "n4_sent",
+       "offset_days": 14,
+       "window_days": 10,
+       "marketing": true,
+       "subject": "Still looking in {{area}}?",
+       "body": "Hi {{first_name}},\n\nChecking in. Is your timeline the same, or has anything changed? I can send a few listings or a quick market snapshot if that helps.\n\n{{agent_name}}"
+      },
+      {
+       "flag": "n5_sent",
+       "offset_days": 30,
+       "window_days": 30,
+       "marketing": true,
+       "subject": "Should I keep you on my list?",
+       "body": "Hi {{first_name}},\n\nI don't want to clutter your inbox. If you're still interested, reply and I'll keep sending relevant updates. If not, no problem and best of luck.\n\n{{agent_name}}"
+      }
+     ],
+     "read_node": "Read Leads"
+    },
+    "n": 2,
+    "wfname": "RealEstate 2 - Lead Nurture Sequence",
+    "file": "2-lead-nurture-sequence.json"
+   },
+   {
+    "id": "viewing",
+    "kind": "event",
+    "title": "Viewing Scheduled",
+    "lite": false,
+    "hook": "realestate-viewing",
+    "rt": {
+     "sheet": "Leads",
+     "key_col": "lead_id",
+     "key_field": "lead_id",
+     "set": {
+      "status": "viewing"
+     },
+     "fields": [
+      {
+       "key": "lead_id",
+       "required": true,
+       "sample": "REabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "taylor@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Taylor Brooks",
+       "write": false
+      },
+      {
+       "key": "property_address",
+       "required": true,
+       "max_length": 200,
+       "sample": "12 Harbor Rd",
+       "col": "viewing_address"
+      },
+      {
+       "key": "viewing_date",
+       "type": "date",
+       "required": true,
+       "sample": "2026-10-20",
+       "col": "viewing_date"
+      },
+      {
+       "key": "viewing_time",
+       "type": "time",
+       "required": true,
+       "sample": "14:00",
+       "col": "viewing_time"
+      }
+     ],
+     "email": {
+      "subject": "Viewing confirmed: {{property_address}} on {{viewing_date}}",
+      "body": "Hi {{first_name}},\n\nYour showing is confirmed.\n\nProperty: {{property_address}}\nDate: {{viewing_date}} at {{viewing_time}}\n\nNeed to change it? Reply here or call {{business_phone}}.\n\n{{agent_name}}\n{{brokerage}}"
+     }
+    },
+    "n": 3,
+    "wfname": "RealEstate 3 - Viewing Scheduled",
+    "file": "3-viewing-scheduled.json"
+   },
+   {
+    "id": "uncontacted",
+    "kind": "digest",
+    "title": "Leads Waiting For First Contact",
+    "lite": false,
+    "cron": "0 16 * * *",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "leads",
+       "sheet": "Leads",
+       "key_col": "lead_id",
+       "node": "Read Leads"
+      }
+     ],
+     "list": {
+      "source": "leads",
+      "where": [
+       {
+        "field": "status",
+        "equals": "new"
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": 0,
+      "columns": [
+       "name",
+       "phone",
+       "interest",
+       "priority",
+       "created_at"
+      ]
+     },
+     "subject": "{{count}} lead(s) have not been contacted yet",
+     "intro": "These leads are still marked 'new'. Speed matters: contact the hot ones first."
+    },
+    "test_rows": {
+     "leads": [
+      {
+       "lead_id": "1",
+       "name": "A",
+       "status": "new",
+       "created_at": "2026-10-12",
+       "priority": "hot",
+       "phone": "1",
+       "interest": "Buying"
+      },
+      {
+       "lead_id": "2",
+       "name": "B",
+       "status": "contacted",
+       "created_at": "2026-10-10",
+       "priority": "normal"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "RealEstate 4 - Leads Waiting For First Contact",
+    "file": "4-leads-waiting-for-first-contact.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Lead Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "leads",
+       "sheet": "Leads",
+       "key_col": "lead_id",
+       "node": "Read Leads"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New leads",
+       "source": "leads",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Hot leads",
+       "source": "leads",
+       "op": "count",
+       "date_col": "created_at",
+       "where": [
+        {
+         "field": "priority",
+         "equals": "hot"
+        }
+       ]
+      },
+      {
+       "label": "Viewings scheduled",
+       "source": "leads",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "viewing"
+        }
+       ]
+      },
+      {
+       "label": "Still uncontacted",
+       "source": "leads",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "new"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly lead report ({{flagged_count}} alert(s))",
+     "intro": "Lead activity for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "leads": [
+      {
+       "lead_id": "1",
+       "status": "new",
+       "priority": "hot",
+       "created_at": "2026-10-10",
+       "updated_at": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 5,
+    "wfname": "RealEstate 5 - Weekly Lead Report",
+    "file": "5-weekly-lead-report.json"
+   }
+  ],
+  "cols": {
+   "Leads": [
+    "lead_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "interest",
+    "area",
+    "price_range",
+    "timeline",
+    "source",
+    "message",
+    "status",
+    "priority",
+    "opted_out",
+    "n1_sent",
+    "n2_sent",
+    "n3_sent",
+    "n4_sent",
+    "n5_sent",
+    "updated_at",
+    "viewing_address",
+    "viewing_date",
+    "viewing_time"
+   ]
+  }
+ },
+ {
+  "slug": "saas-trial-to-paid",
+  "cfg": {
+   "business_name": "YOUR PRODUCT",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "product_name": "YOUR PRODUCT",
+   "app_url": "https://app.example.com",
+   "upgrade_url": "https://app.example.com/upgrade",
+   "docs_url": "https://example.com/docs",
+   "survey_url": "https://example.com/why-did-you-leave"
+  },
+  "flows": [
+   {
+    "id": "signup",
+    "kind": "intake",
+    "title": "New Trial Signup",
+    "lite": true,
+    "hook": "saas-signup",
+    "rt": {
+     "sheet": "Users",
+     "id_col": "user_id",
+     "id_field": "user_id",
+     "id_prefix": "U",
+     "dedupe": [
+      "user_id"
+     ],
+     "fields": [
+      {
+       "key": "user_id",
+       "required": true,
+       "sample": "u_1001"
+      },
+      {
+       "key": "name",
+       "sample": "Riley Quinn"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "riley@example.test"
+      },
+      {
+       "key": "plan",
+       "default": "Pro",
+       "sample": "Pro",
+       "max_length": 40
+      },
+      {
+       "key": "trial_end",
+       "type": "date",
+       "required": true,
+       "sample": "2026-10-26"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "trial"
+      },
+      {
+       "key": "activated",
+       "value": ""
+      },
+      {
+       "key": "converted_at",
+       "value": ""
+      },
+      {
+       "key": "churned_at",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "ack": {
+      "subject": "Welcome to {{product_name}}, {{first_name}}",
+      "body": "Hi {{first_name}},\n\nWelcome to {{product_name}}! Your {{plan}} trial runs until {{trial_end}}.\n\nGet started: {{app_url}}\nHelp and docs: {{docs_url}}\n\nReply to this email any time with questions. It comes to a real person.\n\n{{business_name}}"
+     }
+    },
+    "n": 1,
+    "wfname": "SaaSTrial 1 - New Trial Signup",
+    "file": "1-new-trial-signup.json"
+   },
+   {
+    "id": "nudges",
+    "kind": "sequence",
+    "title": "Onboarding Nudges",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Users",
+     "key_col": "user_id",
+     "date_col": "created_at",
+     "base_status": [
+      "trial"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "tips_sent",
+       "offset_days": 2,
+       "window_days": 2,
+       "marketing": true,
+       "subject": "3 quick wins in {{product_name}}",
+       "body": "Hi {{first_name}},\n\nHere's the fastest way to get value from {{product_name}} in your first session. Start here: {{app_url}}\n\nThe docs cover the common setups: {{docs_url}}\n\n{{business_name}}"
+      },
+      {
+       "flag": "stuck_sent",
+       "offset_days": 5,
+       "window_days": 3,
+       "marketing": true,
+       "subject": "Need a hand getting set up?",
+       "where": {
+        "not": {
+         "field": "activated",
+         "equals": "yes"
+        }
+       },
+       "body": "Hi {{first_name}},\n\nI noticed you haven't gotten started yet. Is something in the way? Reply and tell me what you're trying to do and I'll help.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Users"
+    },
+    "n": 2,
+    "wfname": "SaaSTrial 2 - Onboarding Nudges",
+    "file": "2-onboarding-nudges.json"
+   },
+   {
+    "id": "ending",
+    "kind": "sequence",
+    "title": "Trial Ending Reminders",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Users",
+     "key_col": "user_id",
+     "date_col": "trial_end",
+     "base_status": [
+      "trial"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "end3_sent",
+       "offset_days": -3,
+       "window_days": 1,
+       "marketing": true,
+       "subject": "Your trial ends in 3 days",
+       "body": "Hi {{first_name}},\n\nYour {{product_name}} trial ends on {{trial_end}}. To keep your work and settings, upgrade here: {{upgrade_url}}\n\nWant more time or have questions? Reply and let me know.\n\n{{business_name}}"
+      },
+      {
+       "flag": "end1_sent",
+       "offset_days": -1,
+       "window_days": 0,
+       "marketing": true,
+       "subject": "Last day tomorrow",
+       "body": "Hi {{first_name}},\n\nYour trial ends tomorrow. Upgrade to keep access: {{upgrade_url}}\n\n{{business_name}}"
+      },
+      {
+       "flag": "ended_sent",
+       "offset_days": 1,
+       "window_days": 5,
+       "marketing": true,
+       "subject": "Your {{product_name}} trial has ended",
+       "body": "Hi {{first_name}},\n\nYour trial ended on {{trial_end}}. If you'd still like to use {{product_name}}, you can upgrade any time: {{upgrade_url}}\n\nIf it wasn't a fit, I'd value a one-line reply about why.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Users"
+    },
+    "n": 3,
+    "wfname": "SaaSTrial 3 - Trial Ending Reminders",
+    "file": "3-trial-ending-reminders.json"
+   },
+   {
+    "id": "converted",
+    "kind": "event",
+    "title": "Converted To Paid",
+    "lite": false,
+    "hook": "saas-converted",
+    "rt": {
+     "sheet": "Users",
+     "key_col": "user_id",
+     "key_field": "user_id",
+     "set": {
+      "status": "paid"
+     },
+     "set_today": [
+      "converted_at"
+     ],
+     "fields": [
+      {
+       "key": "user_id",
+       "required": true,
+       "sample": "u_1001"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "riley@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Riley Quinn",
+       "write": false
+      },
+      {
+       "key": "plan",
+       "sample": "Pro",
+       "max_length": 40
+      }
+     ],
+     "email": {
+      "subject": "Thank you, {{first_name}}",
+      "body": "Hi {{first_name}},\n\nThank you for upgrading to {{plan}}. We're glad to have you.\n\nIf you ever need anything, reply here.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "New paid customer: {{name}} ({{plan}})",
+      "body": "{{name}} ({{email}}) converted to {{plan}}."
+     }
+    },
+    "n": 4,
+    "wfname": "SaaSTrial 4 - Converted To Paid",
+    "file": "4-converted-to-paid.json"
+   },
+   {
+    "id": "cancelled",
+    "kind": "event",
+    "title": "Cancelled Or Churned",
+    "lite": false,
+    "hook": "saas-cancelled",
+    "rt": {
+     "sheet": "Users",
+     "key_col": "user_id",
+     "key_field": "user_id",
+     "set": {
+      "status": "churned"
+     },
+     "set_today": [
+      "churned_at"
+     ],
+     "fields": [
+      {
+       "key": "user_id",
+       "required": true,
+       "sample": "u_1001"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "riley@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Riley Quinn",
+       "write": false
+      }
+     ],
+     "email": {
+      "subject": "Sorry to see you go",
+      "body": "Hi {{first_name}},\n\nYour {{product_name}} account was cancelled. If you have 30 seconds, it would help to know why: {{survey_url}}\n\nYou're always welcome back.\n\n{{business_name}}"
+     }
+    },
+    "n": 5,
+    "wfname": "SaaSTrial 5 - Cancelled Or Churned",
+    "file": "5-cancelled-or-churned.json"
+   },
+   {
+    "id": "activated",
+    "kind": "event",
+    "title": "Mark User Activated",
+    "lite": false,
+    "hook": "saas-activated",
+    "rt": {
+     "sheet": "Users",
+     "key_col": "user_id",
+     "key_field": "user_id",
+     "set": {
+      "activated": "yes"
+     },
+     "fields": [
+      {
+       "key": "user_id",
+       "required": true,
+       "sample": "u_1001"
+      }
+     ]
+    },
+    "n": 6,
+    "wfname": "SaaSTrial 6 - Mark User Activated",
+    "file": "6-mark-user-activated.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Conversion Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "users",
+       "sheet": "Users",
+       "key_col": "user_id",
+       "node": "Read Users"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Trial signups",
+       "source": "users",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 40
+      },
+      {
+       "label": "Converted to paid",
+       "source": "users",
+       "op": "count",
+       "date_col": "converted_at"
+      },
+      {
+       "label": "Churned",
+       "source": "users",
+       "op": "count",
+       "date_col": "churned_at",
+       "alert_rise_pct": 100
+      },
+      {
+       "label": "Active trials",
+       "source": "users",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "trial"
+        }
+       ]
+      }
+     ],
+     "ratios": [
+      {
+       "label": "Converted / signups (same week, approximate)",
+       "num": 1,
+       "den": 0
+      }
+     ],
+     "subject": "Weekly trial report ({{flagged_count}} alert(s))",
+     "intro": "Trial and conversion activity for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "users": [
+      {
+       "user_id": "u1",
+       "status": "paid",
+       "created_at": "2026-10-10",
+       "converted_at": "2026-10-11",
+       "churned_at": ""
+      },
+      {
+       "user_id": "u2",
+       "status": "trial",
+       "created_at": "2026-10-09",
+       "converted_at": "",
+       "churned_at": ""
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 7,
+    "wfname": "SaaSTrial 7 - Weekly Conversion Report",
+    "file": "7-weekly-conversion-report.json"
+   }
+  ],
+  "cols": {
+   "Users": [
+    "user_id",
+    "created_at",
+    "name",
+    "email",
+    "plan",
+    "trial_end",
+    "status",
+    "activated",
+    "converted_at",
+    "churned_at",
+    "opted_out",
+    "tips_sent",
+    "stuck_sent",
+    "end3_sent",
+    "end1_sent",
+    "ended_sent",
+    "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "etsy-seller-operations",
+  "cfg": {
+   "business_name": "YOUR SHOP",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true
+  },
+  "flows": [
+   {
+    "id": "order",
+    "kind": "intake",
+    "title": "Log An Order",
+    "lite": true,
+    "hook": "etsy-order",
+    "rt": {
+     "sheet": "Orders",
+     "id_col": "order_id",
+     "id_field": "order_id",
+     "id_prefix": "O",
+     "dedupe": [
+      "order_id"
+     ],
+     "fields": [
+      {
+       "key": "order_id",
+       "required": true,
+       "sample": "3012345678"
+      },
+      {
+       "key": "name",
+       "sample": "Buyer Name"
+      },
+      {
+       "key": "item",
+       "required": true,
+       "max_length": 200,
+       "sample": "Walnut cutting board"
+      },
+      {
+       "key": "qty",
+       "type": "number",
+       "min": 1,
+       "default": 1,
+       "sample": 1
+      },
+      {
+       "key": "price",
+       "type": "number",
+       "required": true,
+       "min": 0,
+       "sample": 64
+      },
+      {
+       "key": "ship_by",
+       "type": "date",
+       "required": true,
+       "sample": "2026-10-16"
+      },
+      {
+       "key": "notes",
+       "max_length": 500,
+       "sample": "Gift message: Happy birthday!"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      },
+      {
+       "key": "tracking",
+       "value": ""
+      },
+      {
+       "key": "shipped_at",
+       "value": ""
+      }
+     ]
+    },
+    "n": 1,
+    "wfname": "Etsy 1 - Log An Order",
+    "file": "1-log-an-order.json"
+   },
+   {
+    "id": "shipped",
+    "kind": "event",
+    "title": "Mark Order Shipped",
+    "lite": true,
+    "hook": "etsy-shipped",
+    "rt": {
+     "sheet": "Orders",
+     "key_col": "order_id",
+     "key_field": "order_id",
+     "set": {
+      "status": "shipped"
+     },
+     "set_today": [
+      "shipped_at"
+     ],
+     "fields": [
+      {
+       "key": "order_id",
+       "required": true,
+       "sample": "3012345678"
+      },
+      {
+       "key": "tracking",
+       "max_length": 80,
+       "sample": "9400111899223344556677"
+      }
+     ]
+    },
+    "n": 2,
+    "wfname": "Etsy 2 - Mark Order Shipped",
+    "file": "2-mark-order-shipped.json"
+   },
+   {
+    "id": "shipqueue",
+    "kind": "digest",
+    "title": "Ship-By Queue",
+    "lite": true,
+    "cron": "0 8 * * *",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "orders",
+       "sheet": "Orders",
+       "key_col": "order_id",
+       "node": "Read Orders"
+      }
+     ],
+     "list": {
+      "source": "orders",
+      "where": [
+       {
+        "field": "status",
+        "equals": "new"
+       }
+      ],
+      "date_col": "ship_by",
+      "within_days": 2,
+      "columns": [
+       "order_id",
+       "item",
+       "qty",
+       "ship_by",
+       "notes"
+      ]
+     },
+     "subject": "{{count}} order(s) to ship by {{today}} + 2 days ({{overdue_count}} overdue)",
+     "intro": "Orders still not shipped, soonest ship-by date first."
+    },
+    "test_rows": {
+     "orders": [
+      {
+       "order_id": "1",
+       "item": "A",
+       "qty": "1",
+       "ship_by": "2026-10-11",
+       "status": "new"
+      },
+      {
+       "order_id": "2",
+       "item": "B",
+       "qty": "2",
+       "ship_by": "2026-10-14",
+       "status": "new"
+      },
+      {
+       "order_id": "3",
+       "item": "C",
+       "qty": "1",
+       "ship_by": "2026-10-30",
+       "status": "new"
+      },
+      {
+       "order_id": "4",
+       "item": "D",
+       "qty": "1",
+       "ship_by": "2026-10-12",
+       "status": "shipped"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "Etsy 3 - Ship-By Queue",
+    "file": "3-ship-by-queue.json"
+   },
+   {
+    "id": "expense",
+    "kind": "intake",
+    "title": "Log An Expense",
+    "lite": false,
+    "hook": "etsy-expense",
+    "rt": {
+     "sheet": "Expenses",
+     "id_col": "expense_id",
+     "id_prefix": "X",
+     "fields": [
+      {
+       "key": "date",
+       "type": "date",
+       "default_today": true,
+       "sample": "2026-10-10"
+      },
+      {
+       "key": "category",
+       "type": "select",
+       "required": true,
+       "sample": "Supplies",
+       "options": [
+        "Supplies",
+        "Shipping",
+        "Fees",
+        "Software",
+        "Advertising",
+        "Other"
+       ]
+      },
+      {
+       "key": "vendor",
+       "max_length": 80,
+       "sample": "Wood Supply Co"
+      },
+      {
+       "key": "amount",
+       "type": "number",
+       "required": true,
+       "min": 0,
+       "sample": 42.5
+      },
+      {
+       "key": "note",
+       "max_length": 200,
+       "sample": "Walnut boards"
+      }
+     ]
+    },
+    "n": 4,
+    "wfname": "Etsy 4 - Log An Expense",
+    "file": "4-log-an-expense.json"
+   },
+   {
+    "id": "lowstock",
+    "kind": "digest",
+    "title": "Low Stock Alert",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "inventory",
+       "sheet": "Inventory",
+       "key_col": "sku",
+       "node": "Read Inventory"
+      }
+     ],
+     "list": {
+      "source": "inventory",
+      "where": [
+       {
+        "field": "qty",
+        "lte_field": "reorder_point"
+       }
+      ],
+      "columns": [
+       "sku",
+       "item",
+       "qty",
+       "reorder_point"
+      ]
+     },
+     "subject": "{{count}} item(s) at or below reorder point",
+     "intro": "Time to restock these. Keep the Inventory sheet's qty column up to date."
+    },
+    "test_rows": {
+     "inventory": [
+      {
+       "sku": "A1",
+       "item": "Boards",
+       "qty": "2",
+       "reorder_point": "5"
+      },
+      {
+       "sku": "B2",
+       "item": "Oil",
+       "qty": "10",
+       "reorder_point": "5"
+      },
+      {
+       "sku": "C3",
+       "item": "Tape",
+       "qty": "",
+       "reorder_point": "5"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 5,
+    "wfname": "Etsy 5 - Low Stock Alert",
+    "file": "5-low-stock-alert.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Shop Summary",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "orders",
+       "sheet": "Orders",
+       "key_col": "order_id",
+       "node": "Read Orders"
+      },
+      {
+       "name": "expenses",
+       "sheet": "Expenses",
+       "key_col": "expense_id",
+       "node": "Read Expenses"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Orders",
+       "source": "orders",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Order revenue (logged)",
+       "source": "orders",
+       "op": "sum",
+       "col": "price",
+       "date_col": "created_at",
+       "format": "money"
+      },
+      {
+       "label": "Expenses (logged)",
+       "source": "expenses",
+       "op": "sum",
+       "col": "amount",
+       "date_col": "date",
+       "format": "money"
+      }
+     ],
+     "ratios": [
+      {
+       "op": "diff",
+       "a": 1,
+       "b": 2,
+       "label": "Revenue minus logged expenses",
+       "format": "money"
+      }
+     ],
+     "subject": "Weekly shop summary ({{flagged_count}} alert(s))",
+     "intro": "Based only on the orders and expenses you logged. Include marketplace fees as expenses for a realistic number. Not tax advice."
+    },
+    "test_rows": {
+     "orders": [
+      {
+       "order_id": "1",
+       "price": "64",
+       "created_at": "2026-10-10"
+      }
+     ],
+     "expenses": [
+      {
+       "expense_id": "X1",
+       "amount": "20",
+       "date": "2026-10-09"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 6,
+    "wfname": "Etsy 6 - Weekly Shop Summary",
+    "file": "6-weekly-shop-summary.json"
+   }
+  ],
+  "cols": {
+   "Orders": [
+    "order_id",
+    "created_at",
+    "name",
+    "item",
+    "qty",
+    "price",
+    "ship_by",
+    "notes",
+    "status",
+    "tracking",
+    "shipped_at",
+    "updated_at"
+   ],
+   "Expenses": [
+    "expense_id",
+    "created_at",
+    "date",
+    "category",
+    "vendor",
+    "amount",
+    "note"
+   ],
+   "Inventory": [
+    "sku",
+    "item",
+    "qty",
+    "reorder_point"
+   ]
+  }
+ },
+ {
+  "slug": "invoice-accounts-receivable",
+  "cfg": {
+   "business_name": "YOUR BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "payment_instructions": "Pay online using the link on your invoice, or reply to arrange another method.",
+   "late_fee_text": ""
+  },
+  "flows": [
+   {
+    "id": "new",
+    "kind": "intake",
+    "title": "Log New Invoice",
+    "lite": true,
+    "hook": "invoice-new",
+    "rt": {
+     "sheet": "Invoices",
+     "id_col": "invoice_id",
+     "id_field": "invoice_id",
+     "id_prefix": "INV",
+     "dedupe": [
+      "invoice_id"
+     ],
+     "fields": [
+      {
+       "key": "invoice_id",
+       "required": true,
+       "sample": "INV-1042"
+      },
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Morgan Lee"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "accounts@client.test"
+      },
+      {
+       "key": "amount",
+       "type": "number",
+       "required": true,
+       "min": 0,
+       "sample": 1250
+      },
+      {
+       "key": "issue_date",
+       "type": "date",
+       "sample": "2026-10-01"
+      },
+      {
+       "key": "due_date",
+       "type": "date",
+       "required": true,
+       "sample": "2026-10-31"
+      },
+      {
+       "key": "invoice_link",
+       "type": "url",
+       "sample": "https://pay.example.com/inv-1042"
+      },
+      {
+       "key": "description",
+       "max_length": 200,
+       "sample": "October retainer"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "sent"
+      },
+      {
+       "key": "paid_date",
+       "value": ""
+      }
+     ],
+     "owner": {
+      "subject": "Invoice {{invoice_id}} logged: {{amount}} due {{due_date}}",
+      "body": "{{name}} owes {{amount}} for {{description}}, due {{due_date}}.\n\nReminders will run automatically while status is 'sent'.\n\nInvoice link: {{invoice_link}}"
+     }
+    },
+    "n": 1,
+    "wfname": "Invoices 1 - Log New Invoice",
+    "file": "1-log-new-invoice.json"
+   },
+   {
+    "id": "reminders",
+    "kind": "sequence",
+    "title": "Payment Reminders",
+    "lite": true,
+    "cron": "0 9 * * 1-5",
+    "rt": {
+     "sheet": "Invoices",
+     "key_col": "invoice_id",
+     "date_col": "due_date",
+     "base_status": [
+      "sent"
+     ],
+     "steps": [
+      {
+       "flag": "r_pre_sent",
+       "offset_days": -3,
+       "window_days": 2,
+       "subject": "Reminder: invoice {{invoice_id}} is due {{due_date}}",
+       "body": "Hi {{first_name}},\n\nA friendly reminder that invoice {{invoice_id}} for {{amount}} ({{description}}) is due on {{due_date}}.\n\nPay here: {{invoice_link}}\n{{payment_instructions}}\n\nThank you,\n{{business_name}}"
+      },
+      {
+       "flag": "r_due_sent",
+       "offset_days": 0,
+       "window_days": 2,
+       "subject": "Invoice {{invoice_id}} is due today",
+       "body": "Hi {{first_name}},\n\nInvoice {{invoice_id}} for {{amount}} is due today.\n\nPay here: {{invoice_link}}\n{{payment_instructions}}\n\nIf you've already paid, thank you and please ignore this message.\n\n{{business_name}}"
+      },
+      {
+       "flag": "r_late3_sent",
+       "offset_days": 3,
+       "window_days": 6,
+       "subject": "Invoice {{invoice_id}} is past due",
+       "body": "Hi {{first_name}},\n\nOur records show invoice {{invoice_id}} for {{amount}} was due on {{due_date}} and hasn't been paid yet.\n\nPay here: {{invoice_link}}\n\nIf there's a problem with the invoice, reply and let me know so we can sort it out.\n\n{{business_name}}"
+      },
+      {
+       "flag": "r_late10_sent",
+       "offset_days": 10,
+       "window_days": 9,
+       "subject": "Second notice: invoice {{invoice_id}}",
+       "body": "Hi {{first_name}},\n\nInvoice {{invoice_id}} for {{amount}} is now 10 days past due. Please pay or let us know when to expect payment: {{invoice_link}}\n{{late_fee_text}}\n\n{{business_name}}"
+      },
+      {
+       "flag": "r_late20_sent",
+       "offset_days": 20,
+       "window_days": 60,
+       "subject": "Final notice: invoice {{invoice_id}}",
+       "body": "Hi {{first_name}},\n\nThis is a final reminder that invoice {{invoice_id}} for {{amount}} is 20 days overdue. Please contact me at {{business_phone}} today so we can resolve it.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Invoices"
+    },
+    "n": 2,
+    "wfname": "Invoices 2 - Payment Reminders",
+    "file": "2-payment-reminders.json"
+   },
+   {
+    "id": "paid",
+    "kind": "event",
+    "title": "Mark Invoice Paid",
+    "lite": true,
+    "hook": "invoice-paid",
+    "rt": {
+     "sheet": "Invoices",
+     "key_col": "invoice_id",
+     "key_field": "invoice_id",
+     "set": {
+      "status": "paid"
+     },
+     "set_today": [
+      "paid_date"
+     ],
+     "fields": [
+      {
+       "key": "invoice_id",
+       "required": true,
+       "sample": "INV-1042"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "sample": "accounts@client.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Morgan Lee",
+       "write": false
+      },
+      {
+       "key": "amount",
+       "type": "number",
+       "sample": 1250,
+       "write": false
+      }
+     ],
+     "email": {
+      "subject": "Payment received for invoice {{invoice_id}}, thank you",
+      "body": "Hi {{first_name}},\n\nWe received your payment for invoice {{invoice_id}}. Thank you!\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "PAID: invoice {{invoice_id}}",
+      "body": "Invoice {{invoice_id}} was marked paid on {{today}}."
+     }
+    },
+    "n": 3,
+    "wfname": "Invoices 3 - Mark Invoice Paid",
+    "file": "3-mark-invoice-paid.json"
+   },
+   {
+    "id": "overdue",
+    "kind": "digest",
+    "title": "Weekly Overdue Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "invoices",
+       "sheet": "Invoices",
+       "key_col": "invoice_id",
+       "node": "Read Invoices"
+      }
+     ],
+     "list": {
+      "source": "invoices",
+      "where": [
+       {
+        "field": "status",
+        "equals": "sent"
+       }
+      ],
+      "date_col": "due_date",
+      "within_days": -1,
+      "columns": [
+       "invoice_id",
+       "name",
+       "amount",
+       "due_date"
+      ]
+     },
+     "subject": "{{count}} overdue invoice(s)",
+     "intro": "Unpaid invoices past their due date:"
+    },
+    "test_rows": {
+     "invoices": [
+      {
+       "invoice_id": "I1",
+       "name": "A",
+       "amount": "100",
+       "due_date": "2026-10-01",
+       "status": "sent"
+      },
+      {
+       "invoice_id": "I2",
+       "name": "B",
+       "amount": "200",
+       "due_date": "2026-10-20",
+       "status": "sent"
+      },
+      {
+       "invoice_id": "I3",
+       "name": "C",
+       "amount": "300",
+       "due_date": "2026-09-20",
+       "status": "paid"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Invoices 4 - Weekly Overdue Report",
+    "file": "4-weekly-overdue-report.json"
+   },
+   {
+    "id": "summary",
+    "kind": "digest",
+    "title": "Monthly Receivables Summary",
+    "lite": false,
+    "cron": "0 8 1 * *",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 30,
+     "sources": [
+      {
+       "name": "invoices",
+       "sheet": "Invoices",
+       "key_col": "invoice_id",
+       "node": "Read Invoices"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Invoiced (30 days)",
+       "source": "invoices",
+       "op": "sum",
+       "col": "amount",
+       "date_col": "created_at",
+       "format": "money"
+      },
+      {
+       "label": "Paid (30 days)",
+       "source": "invoices",
+       "op": "sum",
+       "col": "amount",
+       "date_col": "paid_date",
+       "format": "money",
+       "where": [
+        {
+         "field": "status",
+         "equals": "paid"
+        }
+       ]
+      },
+      {
+       "label": "Outstanding now",
+       "source": "invoices",
+       "op": "sum",
+       "col": "amount",
+       "format": "money",
+       "where": [
+        {
+         "field": "status",
+         "equals": "sent"
+        }
+       ]
+      },
+      {
+       "label": "Unpaid invoices",
+       "source": "invoices",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "sent"
+        }
+       ]
+      }
+     ],
+     "subject": "Monthly receivables summary",
+     "intro": "Receivables for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "invoices": [
+      {
+       "invoice_id": "I1",
+       "amount": "100",
+       "created_at": "2026-10-05",
+       "paid_date": "",
+       "status": "sent"
+      },
+      {
+       "invoice_id": "I2",
+       "amount": "250",
+       "created_at": "2026-09-28",
+       "paid_date": "2026-10-08",
+       "status": "paid"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 5,
+    "wfname": "Invoices 5 - Monthly Receivables Summary",
+    "file": "5-monthly-receivables-summary.json"
+   }
+  ],
+  "cols": {
+   "Invoices": [
+    "invoice_id",
+    "created_at",
+    "name",
+    "email",
+    "amount",
+    "issue_date",
+    "due_date",
+    "invoice_link",
+    "description",
+    "status",
+    "paid_date",
+    "r_pre_sent",
+    "r_due_sent",
+    "r_late3_sent",
+    "r_late10_sent",
+    "r_late20_sent",
+    "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "local-review-management",
+  "cfg": {
+   "business_name": "YOUR BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "review_link": "https://g.page/r/YOUR-REVIEW-LINK"
+  },
+  "flows": [
+   {
+    "id": "customer",
+    "kind": "intake",
+    "title": "Log A Completed Job",
+    "lite": true,
+    "hook": "review-customer",
+    "rt": {
+     "sheet": "Customers",
+     "id_col": "customer_id",
+     "id_prefix": "C",
+     "dedupe": [
+      "email",
+      "job_date"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Pat Rivera"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "pat@example.test"
+      },
+      {
+       "key": "service",
+       "max_length": 80,
+       "sample": "House cleaning"
+      },
+      {
+       "key": "job_date",
+       "type": "date",
+       "default_today": true,
+       "sample": "2026-10-10"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "active"
+      },
+      {
+       "key": "reviewed",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ]
+    },
+    "n": 1,
+    "wfname": "Reviews 1 - Log A Completed Job",
+    "file": "1-log-a-completed-job.json"
+   },
+   {
+    "id": "requests",
+    "kind": "sequence",
+    "title": "Review Requests",
+    "lite": true,
+    "cron": "0 11 * * *",
+    "rt": {
+     "sheet": "Customers",
+     "key_col": "customer_id",
+     "date_col": "job_date",
+     "base_status": [
+      "active"
+     ],
+     "stop_cols": {
+      "opted_out": "yes",
+      "reviewed": "yes"
+     },
+     "steps": [
+      {
+       "flag": "ask1_sent",
+       "offset_days": 1,
+       "window_days": 5,
+       "marketing": true,
+       "subject": "How was your {{service}}, {{first_name}}?",
+       "body": "Hi {{first_name}},\n\nThank you for choosing {{business_name}}. We'd love to hear how it went. If you have a minute, you can leave an honest review here: {{review_link}}\n\nIf anything wasn't right, just reply to this email or call {{business_phone}} and we'll make it right.\n\n{{business_name}}"
+      },
+      {
+       "flag": "ask2_sent",
+       "offset_days": 10,
+       "window_days": 14,
+       "marketing": true,
+       "subject": "A quick favor, {{first_name}}",
+       "body": "Hi {{first_name}},\n\nIf you haven't had a chance yet, an honest review helps small businesses like ours: {{review_link}}\n\nEither way, thank you for your business.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Customers"
+    },
+    "n": 2,
+    "wfname": "Reviews 2 - Review Requests",
+    "file": "2-review-requests.json"
+   },
+   {
+    "id": "feedback",
+    "kind": "intake",
+    "title": "Private Feedback Form",
+    "lite": true,
+    "hook": "review-feedback",
+    "rt": {
+     "sheet": "Feedback",
+     "id_col": "feedback_id",
+     "id_prefix": "F",
+     "dedupe": [
+      "email",
+      "rating"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Pat Rivera"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "pat@example.test"
+      },
+      {
+       "key": "rating",
+       "type": "select",
+       "required": true,
+       "sample": "5",
+       "options": [
+        "1",
+        "2",
+        "3",
+        "4",
+        "5"
+       ]
+      },
+      {
+       "key": "comment",
+       "max_length": 1000,
+       "sample": "Great job, very thorough."
+      },
+      {
+       "key": "service",
+       "max_length": 80,
+       "sample": "House cleaning"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "priority",
+       "value": "normal"
+      },
+      {
+       "key": "status",
+       "value": "new"
+      }
+     ],
+     "tags": [
+      {
+       "when": {
+        "field": "rating",
+        "in": [
+         "1",
+         "2",
+         "3"
+        ]
+       },
+       "set": {
+        "priority": "high",
+        "status": "needs_followup"
+       }
+      }
+     ],
+     "variants": [
+      {
+       "when": {
+        "field": "rating",
+        "in": [
+         "1",
+         "2",
+         "3"
+        ]
+       },
+       "ack": "low"
+      }
+     ],
+     "ack": {
+      "subject": "Thank you for your feedback, {{first_name}}",
+      "body": "Hi {{first_name}},\n\nThank you for sharing your feedback. We read every response.\n\nIf you'd like to share your experience publicly, you can do so here: {{review_link}}\n\n{{business_name}}"
+     },
+     "acks": {
+      "low": {
+       "subject": "We're sorry, {{first_name}}. Let us make it right",
+       "body": "Hi {{first_name}},\n\nThank you for telling us. We're sorry we fell short, and we'd like to make it right. Someone will contact you personally, or you can call {{business_phone}}.\n\nIf you'd like to share your experience publicly, you can do so here: {{review_link}}\n\n{{business_name}}"
+      }
+     },
+     "owner": {
+      "subject": "[{{priority}}] {{rating}}-star feedback from {{name}}",
+      "body": "{{name}} ({{email}}) rated {{service}}: {{rating}}/5.\n\n{{comment}}\n\nIf the rating is 3 or lower, contact them today. Suggested reply to send personally:\n\nHi {{first_name}}, thank you for the honest feedback about your {{service}}. I'm sorry it wasn't what you expected. Can we call you to understand what happened and make it right?\n\nFeedback ID: {{id}}"
+     }
+    },
+    "tests": [
+     {
+      "name": "low rating flagged",
+      "set": {
+       "rating": "2"
+      },
+      "expect_row": {
+       "priority": "high",
+       "status": "needs_followup"
+      },
+      "expect_variant": "low",
+      "expect_html": [
+       "g.page/r/YOUR-REVIEW-LINK"
+      ]
+     },
+     {
+      "name": "high rating normal",
+      "set": {
+       "rating": "5"
+      },
+      "expect_row": {
+       "priority": "normal"
+      }
+     }
+    ],
+    "n": 3,
+    "wfname": "Reviews 3 - Private Feedback Form",
+    "file": "3-private-feedback-form.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Reputation Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "customers",
+       "sheet": "Customers",
+       "key_col": "customer_id",
+       "node": "Read Customers"
+      },
+      {
+       "name": "feedback",
+       "sheet": "Feedback",
+       "key_col": "feedback_id",
+       "node": "Read Feedback"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Jobs logged",
+       "source": "customers",
+       "op": "count",
+       "date_col": "created_at"
+      },
+      {
+       "label": "Feedback received",
+       "source": "feedback",
+       "op": "count",
+       "date_col": "created_at"
+      },
+      {
+       "label": "Average rating",
+       "source": "feedback",
+       "op": "avg",
+       "col": "rating",
+       "date_col": "created_at"
+      },
+      {
+       "label": "Low ratings (1-3)",
+       "source": "feedback",
+       "op": "count",
+       "date_col": "created_at",
+       "alert_rise_pct": 50,
+       "where": [
+        {
+         "field": "rating",
+         "in": [
+          "1",
+          "2",
+          "3"
+         ]
+        }
+       ]
+      },
+      {
+       "label": "Feedback needing follow-up",
+       "source": "feedback",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "needs_followup"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly reputation report ({{flagged_count}} alert(s))",
+     "intro": "Customer feedback for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "customers": [
+      {
+       "customer_id": "C1",
+       "created_at": "2026-10-10"
+      }
+     ],
+     "feedback": [
+      {
+       "feedback_id": "F1",
+       "created_at": "2026-10-10",
+       "rating": "2",
+       "status": "needs_followup"
+      },
+      {
+       "feedback_id": "F2",
+       "created_at": "2026-10-11",
+       "rating": "5",
+       "status": "new"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Reviews 4 - Weekly Reputation Report",
+    "file": "4-weekly-reputation-report.json"
+   }
+  ],
+  "cols": {
+   "Customers": [
+    "customer_id",
+    "created_at",
+    "name",
+    "email",
+    "service",
+    "job_date",
+    "status",
+    "reviewed",
+    "opted_out",
+    "ask1_sent",
+    "ask2_sent"
+   ],
+   "Feedback": [
+    "feedback_id",
+    "created_at",
+    "name",
+    "email",
+    "rating",
+    "comment",
+    "service",
+    "priority",
+    "status"
+   ]
+  }
+ },
+ {
+  "slug": "appointment-no-show-reduction",
+  "cfg": {
+   "business_name": "YOUR BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "reschedule_link": "https://example.com/reschedule",
+   "booking_link": "https://example.com/book"
+  },
+  "flows": [
+   {
+    "id": "book",
+    "kind": "intake",
+    "title": "New Appointment",
+    "lite": true,
+    "hook": "noshow-book",
+    "rt": {
+     "sheet": "Appointments",
+     "id_col": "appt_id",
+     "id_prefix": "A",
+     "dedupe": [
+      "email",
+      "appt_date",
+      "appt_time"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Jordan Smith"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "jordan@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0166"
+      },
+      {
+       "key": "service",
+       "max_length": 80,
+       "sample": "Haircut"
+      },
+      {
+       "key": "appt_date",
+       "type": "date",
+       "required": true,
+       "min_days_ahead": 0,
+       "sample": "2026-10-22"
+      },
+      {
+       "key": "appt_time",
+       "type": "time",
+       "required": true,
+       "sample": "15:30"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "booked"
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "ack": {
+      "subject": "Confirmed: {{service}} on {{appt_date}} at {{appt_time}}",
+      "body": "Hi {{first_name}},\n\nYou're booked for {{service}} on {{appt_date}} at {{appt_time}}.\n\nNeed to change it? Reschedule here: {{reschedule_link}} or call {{business_phone}}. Please give us as much notice as you can so someone else can take the slot.\n\n{{business_name}}"
+     }
+    },
+    "n": 1,
+    "wfname": "NoShow 1 - New Appointment",
+    "file": "1-new-appointment.json"
+   },
+   {
+    "id": "reminders",
+    "kind": "sequence",
+    "title": "Appointment Reminders",
+    "lite": true,
+    "cron": "0 16 * * *",
+    "rt": {
+     "sheet": "Appointments",
+     "key_col": "appt_id",
+     "date_col": "appt_date",
+     "base_status": [
+      "booked"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "rem2_sent",
+       "offset_days": -2,
+       "window_days": 0,
+       "subject": "Reminder: {{service}} on {{appt_date}}",
+       "body": "Hi {{first_name}},\n\nA reminder of your {{service}} on {{appt_date}} at {{appt_time}}.\n\nCan't make it? Reschedule here: {{reschedule_link}}\n\n{{business_name}}"
+      },
+      {
+       "flag": "rem1_sent",
+       "offset_days": -1,
+       "window_days": 0,
+       "subject": "See you tomorrow at {{appt_time}}",
+       "body": "Hi {{first_name}},\n\nSee you tomorrow, {{appt_date}} at {{appt_time}}. If something came up, please tell us today: {{reschedule_link}} or {{business_phone}}.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Appointments"
+    },
+    "n": 2,
+    "wfname": "NoShow 2 - Appointment Reminders",
+    "file": "2-appointment-reminders.json"
+   },
+   {
+    "id": "noshow",
+    "kind": "event",
+    "title": "Mark No-Show",
+    "lite": true,
+    "hook": "noshow-missed",
+    "rt": {
+     "sheet": "Appointments",
+     "key_col": "appt_id",
+     "key_field": "appt_id",
+     "set": {
+      "status": "no_show"
+     },
+     "fields": [
+      {
+       "key": "appt_id",
+       "required": true,
+       "sample": "Aabc123"
+      }
+     ]
+    },
+    "n": 3,
+    "wfname": "NoShow 3 - Mark No-Show",
+    "file": "3-mark-no-show.json"
+   },
+   {
+    "id": "attended",
+    "kind": "event",
+    "title": "Mark Attended",
+    "lite": false,
+    "hook": "noshow-attended",
+    "rt": {
+     "sheet": "Appointments",
+     "key_col": "appt_id",
+     "key_field": "appt_id",
+     "set": {
+      "status": "attended"
+     },
+     "fields": [
+      {
+       "key": "appt_id",
+       "required": true,
+       "sample": "Aabc123"
+      }
+     ]
+    },
+    "n": 4,
+    "wfname": "NoShow 4 - Mark Attended",
+    "file": "4-mark-attended.json"
+   },
+   {
+    "id": "resched",
+    "kind": "event",
+    "title": "Reschedule Appointment",
+    "lite": false,
+    "hook": "noshow-reschedule",
+    "rt": {
+     "sheet": "Appointments",
+     "key_col": "appt_id",
+     "key_field": "appt_id",
+     "set": {
+      "status": "booked",
+      "rem2_sent": "",
+      "rem1_sent": ""
+     },
+     "fields": [
+      {
+       "key": "appt_id",
+       "required": true,
+       "sample": "Aabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "jordan@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Jordan Smith",
+       "write": false
+      },
+      {
+       "key": "appt_date",
+       "type": "date",
+       "required": true,
+       "min_days_ahead": 0,
+       "sample": "2026-10-29"
+      },
+      {
+       "key": "appt_time",
+       "type": "time",
+       "required": true,
+       "sample": "10:00"
+      }
+     ],
+     "email": {
+      "subject": "Rescheduled: {{appt_date}} at {{appt_time}}",
+      "body": "Hi {{first_name}},\n\nYour appointment is now {{appt_date}} at {{appt_time}}. See you then!\n\n{{business_name}}"
+     }
+    },
+    "n": 5,
+    "wfname": "NoShow 5 - Reschedule Appointment",
+    "file": "5-reschedule-appointment.json"
+   },
+   {
+    "id": "missed",
+    "kind": "sequence",
+    "title": "Missed Appointment Follow-Up",
+    "lite": false,
+    "cron": "0 11 * * *",
+    "rt": {
+     "sheet": "Appointments",
+     "key_col": "appt_id",
+     "date_col": "appt_date",
+     "base_status": [
+      "no_show"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "miss1_sent",
+       "offset_days": 1,
+       "window_days": 3,
+       "marketing": true,
+       "subject": "We missed you, {{first_name}}",
+       "body": "Hi {{first_name}},\n\nWe missed you at your {{service}} on {{appt_date}}. Things come up. Want to pick a new time? {{booking_link}}\n\n{{business_name}}"
+      },
+      {
+       "flag": "miss2_sent",
+       "offset_days": 14,
+       "window_days": 14,
+       "marketing": true,
+       "subject": "Ready to rebook?",
+       "body": "Hi {{first_name}},\n\nWhenever you're ready to rebook your {{service}}, you can do it here: {{booking_link}}\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Appointments"
+    },
+    "n": 6,
+    "wfname": "NoShow 6 - Missed Appointment Follow-Up",
+    "file": "6-missed-appointment-follow-up.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly No-Show Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "appts",
+       "sheet": "Appointments",
+       "key_col": "appt_id",
+       "node": "Read Appointments"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Appointments booked",
+       "source": "appts",
+       "op": "count",
+       "date_col": "created_at"
+      },
+      {
+       "label": "Attended",
+       "source": "appts",
+       "op": "count",
+       "date_col": "appt_date",
+       "where": [
+        {
+         "field": "status",
+         "equals": "attended"
+        }
+       ]
+      },
+      {
+       "label": "No-shows",
+       "source": "appts",
+       "op": "count",
+       "date_col": "appt_date",
+       "alert_rise_pct": 50,
+       "where": [
+        {
+         "field": "status",
+         "equals": "no_show"
+        }
+       ]
+      },
+      {
+       "label": "Held (attended + no-show)",
+       "source": "appts",
+       "op": "count",
+       "date_col": "appt_date",
+       "where": [
+        {
+         "field": "status",
+         "in": [
+          "attended",
+          "no_show"
+         ]
+        }
+       ]
+      }
+     ],
+     "ratios": [
+      {
+       "label": "No-show rate",
+       "num": 2,
+       "den": 3
+      }
+     ],
+     "subject": "Weekly no-show report ({{flagged_count}} alert(s))",
+     "intro": "Appointments for the last {{window_days}} days. Mark attended/no-show promptly for accurate numbers."
+    },
+    "test_rows": {
+     "appts": [
+      {
+       "appt_id": "A1",
+       "status": "attended",
+       "created_at": "2026-10-01",
+       "appt_date": "2026-10-09"
+      },
+      {
+       "appt_id": "A2",
+       "status": "no_show",
+       "created_at": "2026-10-01",
+       "appt_date": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 7,
+    "wfname": "NoShow 7 - Weekly No-Show Report",
+    "file": "7-weekly-no-show-report.json"
+   }
+  ],
+  "cols": {
+   "Appointments": [
+    "appt_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "service",
+    "appt_date",
+    "appt_time",
+    "status",
+    "opted_out",
+    "rem2_sent",
+    "rem1_sent",
+    "updated_at",
+    "miss1_sent",
+    "miss2_sent"
+   ]
+  }
+ },
+ {
+  "slug": "recruiting-applicant-pipeline",
+  "cfg": {
+   "business_name": "YOUR COMPANY",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "scheduling_link": "https://example.com/schedule-interview",
+   "careers_email": "jobs@example.com",
+   "hiring_managers": {
+    "driver": "manager-driver@example.com",
+    "office admin": "manager-office@example.com"
+   }
+  },
+  "flows": [
+   {
+    "id": "apply",
+    "kind": "intake",
+    "title": "Application Intake",
+    "lite": true,
+    "hook": "recruiting-apply",
+    "rt": {
+     "sheet": "Applicants",
+     "id_col": "applicant_id",
+     "id_prefix": "AP",
+     "dedupe": [
+      "email",
+      "role"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Alex Morgan"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "alex@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0133"
+      },
+      {
+       "key": "role",
+       "type": "select",
+       "required": true,
+       "sample": "Driver",
+       "options": [
+        "Cleaner",
+        "Driver",
+        "Office Admin",
+        "Other"
+       ]
+      },
+      {
+       "key": "resume_url",
+       "type": "url",
+       "sample": "https://example.test/alex-resume.pdf"
+      },
+      {
+       "key": "source",
+       "max_length": 60,
+       "sample": "Indeed"
+      },
+      {
+       "key": "note",
+       "max_length": 1000,
+       "sample": "Available to start in two weeks."
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      }
+     ],
+     "route": {
+      "by": "role",
+      "map_cfg": "hiring_managers",
+      "default_cfg": "owner_email",
+      "store_col": "manager_email"
+     },
+     "ack": {
+      "subject": "We received your application for {{role}}",
+      "body": "Hi {{first_name}},\n\nThank you for applying for the {{role}} position at {{business_name}}. We received your application and will review it. If we'd like to talk, we'll contact you.\n\nWe can't respond to every application individually, but we read each one.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "New applicant: {{name}} for {{role}}",
+      "body": "{{name}} ({{email}}, {{phone}}) applied for {{role}}.\n\nResume: {{resume_url}}\nSource: {{source}}\n\n{{note}}\n\nApplicant ID: {{id}}. Update their status with the 'Update Applicant Status' webhook or in the Applicants sheet."
+     }
+    },
+    "tests": [
+     {
+      "name": "routes to the hiring manager",
+      "expect_owner_to": "manager-driver@example.com",
+      "expect_row": {
+       "manager_email": "manager-driver@example.com"
+      }
+     },
+     {
+      "name": "unmapped role goes to owner",
+      "set": {
+       "role": "Other"
+      },
+      "expect_owner_to": "you@example.com"
+     }
+    ],
+    "n": 1,
+    "wfname": "Recruiting 1 - Application Intake",
+    "file": "1-application-intake.json"
+   },
+   {
+    "id": "status",
+    "kind": "event",
+    "title": "Update Applicant Status",
+    "lite": true,
+    "hook": "recruiting-status",
+    "rt": {
+     "sheet": "Applicants",
+     "key_col": "applicant_id",
+     "key_field": "applicant_id",
+     "emails_key": "status",
+     "fields": [
+      {
+       "key": "applicant_id",
+       "required": true,
+       "sample": "APabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "alex@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Alex Morgan",
+       "write": false
+      },
+      {
+       "key": "role",
+       "sample": "Driver",
+       "write": false
+      },
+      {
+       "key": "status",
+       "type": "select",
+       "required": true,
+       "sample": "interview",
+       "options": [
+        "screening",
+        "interview",
+        "offer",
+        "rejected",
+        "hired",
+        "withdrawn"
+       ]
+      }
+     ],
+     "emails": {
+      "screening": {
+       "subject": "Your application for {{role}}: next step",
+       "body": "Hi {{first_name}},\n\nThanks for applying. We'd like to learn more about you. Someone will contact you soon to talk through the {{role}} role.\n\n{{business_name}}"
+      },
+      "interview": {
+       "subject": "Interview invitation: {{role}} at {{business_name}}",
+       "body": "Hi {{first_name}},\n\nWe'd like to invite you to interview for the {{role}} position. Please choose a time here: {{scheduling_link}}\n\nIf you need an accommodation or have trouble with the link, reply to this email.\n\n{{business_name}}"
+      },
+      "offer": {
+       "subject": "About your application for {{role}}",
+       "body": "Hi {{first_name}},\n\nWe enjoyed meeting you and would like to discuss an offer for the {{role}} position. Please call or reply so we can walk you through the details.\n\n{{business_name}}"
+      },
+      "rejected": {
+       "subject": "Your application for {{role}}",
+       "body": "Hi {{first_name}},\n\nThank you for your interest in {{business_name}} and for the time you spent applying. We've decided to move forward with other candidates for the {{role}} role. We wish you the best in your search.\n\n{{business_name}}"
+      },
+      "hired": {
+       "subject": "Welcome to {{business_name}}!",
+       "body": "Hi {{first_name}},\n\nWelcome to the team. We'll be in touch with your start date and first-day details.\n\n{{business_name}}"
+      }
+     }
+    },
+    "n": 2,
+    "wfname": "Recruiting 2 - Update Applicant Status",
+    "file": "2-update-applicant-status.json"
+   },
+   {
+    "id": "stale",
+    "kind": "digest",
+    "title": "Applicants Waiting For Review",
+    "lite": false,
+    "cron": "0 8 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "applicants",
+       "sheet": "Applicants",
+       "key_col": "applicant_id",
+       "node": "Read Applicants"
+      }
+     ],
+     "list": {
+      "source": "applicants",
+      "where": [
+       {
+        "field": "status",
+        "equals": "new"
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": -3,
+      "group_by": "manager_email",
+      "columns": [
+       "name",
+       "role",
+       "created_at",
+       "resume_url"
+      ]
+     },
+     "subject": "{{count}} applicant(s) waiting more than 3 days",
+     "intro": "These applicants have not been reviewed yet. Candidates who wait too long accept other offers."
+    },
+    "test_rows": {
+     "applicants": [
+      {
+       "applicant_id": "1",
+       "name": "A",
+       "role": "Driver",
+       "status": "new",
+       "created_at": "2026-10-05",
+       "manager_email": "m1@example.com",
+       "resume_url": "x"
+      },
+      {
+       "applicant_id": "2",
+       "name": "B",
+       "role": "Driver",
+       "status": "new",
+       "created_at": "2026-10-06",
+       "manager_email": "m1@example.com",
+       "resume_url": "y"
+      },
+      {
+       "applicant_id": "3",
+       "name": "C",
+       "role": "Cleaner",
+       "status": "new",
+       "created_at": "2026-10-04",
+       "manager_email": "m2@example.com",
+       "resume_url": "z"
+      },
+      {
+       "applicant_id": "4",
+       "name": "D",
+       "role": "Cleaner",
+       "status": "new",
+       "created_at": "2026-10-11",
+       "manager_email": "m2@example.com",
+       "resume_url": "w"
+      }
+     ]
+    },
+    "expect_count": 2,
+    "n": 3,
+    "wfname": "Recruiting 3 - Applicants Waiting For Review",
+    "file": "3-applicants-waiting-for-review.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Hiring Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "sources": [
+      {
+       "name": "applicants",
+       "sheet": "Applicants",
+       "key_col": "applicant_id",
+       "node": "Read Applicants"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "New applicants",
+       "source": "applicants",
+       "op": "count",
+       "date_col": "created_at"
+      },
+      {
+       "label": "Moved to interview",
+       "source": "applicants",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "interview"
+        }
+       ]
+      },
+      {
+       "label": "Offers",
+       "source": "applicants",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "offer"
+        }
+       ]
+      },
+      {
+       "label": "Hired",
+       "source": "applicants",
+       "op": "count",
+       "date_col": "updated_at",
+       "where": [
+        {
+         "field": "status",
+         "equals": "hired"
+        }
+       ]
+      },
+      {
+       "label": "Unreviewed (all time)",
+       "source": "applicants",
+       "op": "count",
+       "where": [
+        {
+         "field": "status",
+         "equals": "new"
+        }
+       ]
+      }
+     ],
+     "subject": "Weekly hiring report",
+     "intro": "Hiring activity for the last {{window_days}} days."
+    },
+    "test_rows": {
+     "applicants": [
+      {
+       "applicant_id": "1",
+       "status": "interview",
+       "created_at": "2026-10-08",
+       "updated_at": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Recruiting 4 - Weekly Hiring Report",
+    "file": "4-weekly-hiring-report.json"
+   }
+  ],
+  "cols": {
+   "Applicants": [
+    "applicant_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "role",
+    "resume_url",
+    "source",
+    "note",
+    "status",
+    "manager_email",
+    "updated_at"
+   ]
+  }
+ },
+ {
+  "slug": "catering-inquiry-funnel",
+  "cfg": {
+   "business_name": "YOUR CATERING",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "kitchen_email": "kitchen@example.com",
+   "max_guests": 300,
+   "min_lead_days": 14,
+   "blackout_dates": [
+    "2026-12-24",
+    "2026-12-25"
+   ],
+   "deposit_text": "A 50% deposit holds your date. We'll send payment instructions separately."
+  },
+  "flows": [
+   {
+    "id": "inquiry",
+    "kind": "intake",
+    "title": "Event Inquiry Intake",
+    "lite": true,
+    "hook": "catering-inquiry",
+    "rt": {
+     "sheet": "Inquiries",
+     "id_col": "inquiry_id",
+     "id_prefix": "CT",
+     "dedupe": [
+      "email",
+      "event_date"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Sam Rivers"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "sam@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0121"
+      },
+      {
+       "key": "event_type",
+       "type": "select",
+       "required": true,
+       "sample": "Corporate",
+       "options": [
+        "Wedding",
+        "Corporate",
+        "Birthday",
+        "Memorial",
+        "Other"
+       ]
+      },
+      {
+       "key": "event_date",
+       "type": "date",
+       "required": true,
+       "min_days_ahead": 0,
+       "sample": "2026-12-12"
+      },
+      {
+       "key": "guests",
+       "type": "number",
+       "required": true,
+       "min": 1,
+       "max": 5000,
+       "sample": 60
+      },
+      {
+       "key": "location",
+       "max_length": 200,
+       "sample": "Waterfront Hall"
+      },
+      {
+       "key": "budget",
+       "max_length": 60,
+       "sample": "$2,500"
+      },
+      {
+       "key": "dietary",
+       "max_length": 300,
+       "sample": "2 vegetarian, 1 nut allergy"
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "new"
+      },
+      {
+       "key": "quote_sent_at",
+       "value": ""
+      },
+      {
+       "key": "deposit_paid",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "variants": [
+      {
+       "when": {
+        "field": "event_date",
+        "in_cfg": "blackout_dates"
+       },
+       "set": {
+        "status": "declined_date"
+       },
+       "ack": "date"
+      },
+      {
+       "when": {
+        "field": "guests",
+        "gt": "cfg.max_guests"
+       },
+       "set": {
+        "status": "too_large"
+       },
+       "ack": "large"
+      },
+      {
+       "when": {
+        "field": "days_until_event_date",
+        "lt": "cfg.min_lead_days"
+       },
+       "set": {
+        "status": "short_notice"
+       },
+       "ack": "short"
+      }
+     ],
+     "ack": {
+      "subject": "Your {{event_type}} inquiry for {{event_date}}",
+      "body": "Hi {{first_name}},\n\nThank you for considering {{business_name}} for your {{event_type}} on {{event_date}} ({{guests}} guests). We'll review the details and send a proposal, usually within 2 business days.\n\nQuestions in the meantime? {{business_phone}}.\n\n{{business_name}}"
+     },
+     "acks": {
+      "date": {
+       "subject": "About your {{event_date}} date",
+       "body": "Hi {{first_name}},\n\nThank you for thinking of us. Unfortunately we're not able to cater on {{event_date}}. If you have a flexible date, reply and we'll check availability.\n\n{{business_name}}"
+      },
+      "large": {
+       "subject": "About your event size",
+       "body": "Hi {{first_name}},\n\nThank you for your inquiry. {{guests}} guests is above our usual maximum, so we'd need to talk before we could commit. We'll contact you shortly to see whether we can make it work.\n\n{{business_name}}"
+      },
+      "short": {
+       "subject": "Your {{event_date}} event: short notice",
+       "body": "Hi {{first_name}},\n\nThank you for your inquiry. Your date is on short notice for us, so we'll need to confirm availability and menu options by phone. We'll contact you today, or call {{business_phone}}.\n\n{{business_name}}"
+      }
+     },
+     "owner": {
+      "subject": "[{{status}}] Catering inquiry: {{name}}, {{event_type}} on {{event_date}} ({{guests}})",
+      "body": "{{name}} ({{email}}, {{phone}})\n\n{{event_type}} on {{event_date}} at {{location}} for {{guests}} guests.\nBudget: {{budget}}\nDietary: {{dietary}}\n\nInquiry ID: {{id}}\n\nWhen you send the proposal, set status to 'quoted' and fill quote_sent_at to start follow-ups."
+     }
+    },
+    "tests": [
+     {
+      "name": "blackout date",
+      "set": {
+       "event_date": "2026-12-24"
+      },
+      "expect_row": {
+       "status": "declined_date"
+      },
+      "expect_variant": "date"
+     },
+     {
+      "name": "too many guests",
+      "set": {
+       "guests": 900
+      },
+      "expect_row": {
+       "status": "too_large"
+      },
+      "expect_variant": "large"
+     },
+     {
+      "name": "short notice",
+      "set": {
+       "event_date": "2026-10-20"
+      },
+      "expect_row": {
+       "status": "short_notice"
+      },
+      "expect_variant": "short"
+     },
+     {
+      "name": "normal",
+      "expect_row": {
+       "status": "new"
+      },
+      "expect_variant": ""
+     }
+    ],
+    "n": 1,
+    "wfname": "Catering 1 - Event Inquiry Intake",
+    "file": "1-event-inquiry-intake.json"
+   },
+   {
+    "id": "quote_followups",
+    "kind": "sequence",
+    "title": "Proposal Follow-Ups",
+    "lite": true,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Inquiries",
+     "key_col": "inquiry_id",
+     "date_col": "quote_sent_at",
+     "base_status": [
+      "quoted"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "q1_sent",
+       "offset_days": 2,
+       "window_days": 3,
+       "marketing": true,
+       "subject": "Questions about your {{event_type}} proposal?",
+       "body": "Hi {{first_name}},\n\nJust checking in on the proposal for your {{event_date}} event. I'm happy to adjust the menu or the budget. Dates fill up, so let me know if you'd like to lock yours in.\n\n{{business_name}}"
+      },
+      {
+       "flag": "q2_sent",
+       "offset_days": 6,
+       "window_days": 10,
+       "marketing": true,
+       "subject": "Still holding {{event_date}}?",
+       "body": "Hi {{first_name}},\n\nI'm still holding your date for now, but I'll need to release it soon if I don't hear back. Reply to confirm, ask a question, or let me know if plans changed.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Inquiries"
+    },
+    "n": 2,
+    "wfname": "Catering 2 - Proposal Follow-Ups",
+    "file": "2-proposal-follow-ups.json"
+   },
+   {
+    "id": "confirmed",
+    "kind": "event",
+    "title": "Event Confirmed",
+    "lite": false,
+    "hook": "catering-confirmed",
+    "rt": {
+     "sheet": "Inquiries",
+     "key_col": "inquiry_id",
+     "key_field": "inquiry_id",
+     "set": {
+      "status": "confirmed"
+     },
+     "set_today": [
+      "confirmed_at"
+     ],
+     "fields": [
+      {
+       "key": "inquiry_id",
+       "required": true,
+       "sample": "CTabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "sam@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Sam Rivers",
+       "write": false
+      },
+      {
+       "key": "event_type",
+       "sample": "Corporate",
+       "write": false
+      },
+      {
+       "key": "event_date",
+       "type": "date",
+       "required": true,
+       "sample": "2026-12-12",
+       "write": false
+      }
+     ],
+     "email": {
+      "subject": "Confirmed: your {{event_type}} on {{event_date}}",
+      "body": "Hi {{first_name}},\n\nYour {{event_type}} on {{event_date}} is confirmed. {{deposit_text}}\n\nWe'll be in touch a week before to finalize the headcount and menu.\n\n{{business_name}}"
+     },
+     "owner": {
+      "subject": "CONFIRMED: {{name}} {{event_type}} {{event_date}}",
+      "body": "{{name}}'s {{event_type}} on {{event_date}} is confirmed. Update the sheet's deposit_paid column when the deposit arrives."
+     }
+    },
+    "n": 3,
+    "wfname": "Catering 3 - Event Confirmed",
+    "file": "3-event-confirmed.json"
+   },
+   {
+    "id": "deposit",
+    "kind": "sequence",
+    "title": "Deposit Reminders",
+    "lite": false,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Inquiries",
+     "key_col": "inquiry_id",
+     "date_col": "confirmed_at",
+     "base_status": [
+      "confirmed"
+     ],
+     "stop_cols": {
+      "deposit_paid": "yes"
+     },
+     "steps": [
+      {
+       "flag": "d1_sent",
+       "offset_days": 2,
+       "window_days": 2,
+       "subject": "Deposit to hold {{event_date}}",
+       "body": "Hi {{first_name}},\n\nFriendly reminder: {{deposit_text}} Your date isn't fully secured until the deposit is received.\n\n{{business_name}}"
+      },
+      {
+       "flag": "d2_sent",
+       "offset_days": 5,
+       "window_days": 14,
+       "subject": "Deposit still needed for {{event_date}}",
+       "body": "Hi {{first_name}},\n\nWe haven't received the deposit for {{event_date}} yet. Please contact us at {{business_phone}} so we can keep your date.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Inquiries"
+    },
+    "n": 4,
+    "wfname": "Catering 4 - Deposit Reminders",
+    "file": "4-deposit-reminders.json"
+   },
+   {
+    "id": "countdown",
+    "kind": "sequence",
+    "title": "Event Countdown",
+    "lite": false,
+    "cron": "0 10 * * *",
+    "rt": {
+     "sheet": "Inquiries",
+     "key_col": "inquiry_id",
+     "date_col": "event_date",
+     "base_status": [
+      "confirmed"
+     ],
+     "steps": [
+      {
+       "flag": "c7_sent",
+       "offset_days": -7,
+       "window_days": 1,
+       "subject": "One week to go: final headcount and menu",
+       "body": "Hi {{first_name}},\n\nYour {{event_type}} is one week away ({{event_date}}). Please send us your final headcount, any dietary needs (currently noted: {{dietary}}), and delivery or setup details.\n\n{{business_name}}"
+      },
+      {
+       "flag": "c2_sent",
+       "offset_days": -2,
+       "window_days": 0,
+       "subject": "Final details for {{event_date}}",
+       "body": "Hi {{first_name}},\n\nWe're all set for {{event_date}}. Reply right away if anything has changed, or call {{business_phone}}.\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Inquiries"
+    },
+    "n": 5,
+    "wfname": "Catering 5 - Event Countdown",
+    "file": "5-event-countdown.json"
+   },
+   {
+    "id": "prep",
+    "kind": "digest",
+    "title": "Upcoming Event Prep List",
+    "lite": false,
+    "cron": "0 6 * * *",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "inquiries",
+       "sheet": "Inquiries",
+       "key_col": "inquiry_id",
+       "node": "Read Inquiries"
+      }
+     ],
+     "list": {
+      "source": "inquiries",
+      "where": [
+       {
+        "field": "status",
+        "equals": "confirmed"
+       }
+      ],
+      "date_col": "event_date",
+      "min_days": 0,
+      "within_days": 3,
+      "to_cfg": "kitchen_email",
+      "columns": [
+       "event_date",
+       "event_type",
+       "name",
+       "guests",
+       "dietary",
+       "location"
+      ]
+     },
+     "subject": "{{count}} confirmed event(s) in the next 3 days",
+     "intro": "Prep list for upcoming catering events:",
+     "outro": "Allergy and dietary notes come straight from the customer's form. Always confirm allergens with the customer directly."
+    },
+    "test_rows": {
+     "inquiries": [
+      {
+       "inquiry_id": "1",
+       "status": "confirmed",
+       "event_date": "2026-10-14",
+       "event_type": "Corporate",
+       "name": "A",
+       "guests": "40",
+       "dietary": "nuts",
+       "location": "X"
+      },
+      {
+       "inquiry_id": "2",
+       "status": "confirmed",
+       "event_date": "2026-10-30",
+       "event_type": "Wedding",
+       "name": "B",
+       "guests": "90",
+       "dietary": "",
+       "location": "Y"
+      },
+      {
+       "inquiry_id": "3",
+       "status": "new",
+       "event_date": "2026-10-13",
+       "event_type": "Other",
+       "name": "C",
+       "guests": "10",
+       "dietary": "",
+       "location": "Z"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 6,
+    "wfname": "Catering 6 - Upcoming Event Prep List",
+    "file": "6-upcoming-event-prep-list.json"
+   }
+  ],
+  "cols": {
+   "Inquiries": [
+    "inquiry_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "event_type",
+    "event_date",
+    "guests",
+    "location",
+    "budget",
+    "dietary",
+    "status",
+    "quote_sent_at",
+    "deposit_paid",
+    "opted_out",
+    "q1_sent",
+    "q2_sent",
+    "updated_at",
+    "confirmed_at",
+    "d1_sent",
+    "d2_sent",
+    "c7_sent",
+    "c2_sent"
+   ]
+  }
+ },
+ {
+  "slug": "property-maintenance-desk",
+  "cfg": {
+   "business_name": "YOUR PROPERTY MANAGEMENT",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true,
+   "business_phone": "(555) 000-0000",
+   "emergency_phone": "(555) 000-1111",
+   "emergency_email": "you@example.com",
+   "survey_link": "https://example.com/maintenance-survey",
+   "contractors": {
+    "plumbing": "plumber@example.com",
+    "electrical": "electrician@example.com",
+    "hvac": "hvac@example.com"
+   }
+  },
+  "flows": [
+   {
+    "id": "request",
+    "kind": "intake",
+    "title": "Maintenance Request Intake",
+    "lite": true,
+    "hook": "maintenance-request",
+    "rt": {
+     "sheet": "Requests",
+     "id_col": "request_id",
+     "id_prefix": "M",
+     "dedupe": [
+      "email",
+      "property",
+      "unit",
+      "category"
+     ],
+     "fields": [
+      {
+       "key": "name",
+       "required": true,
+       "sample": "Jamie Tenant"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "jamie@example.test"
+      },
+      {
+       "key": "phone",
+       "type": "phone",
+       "sample": "555-0144"
+      },
+      {
+       "key": "property",
+       "required": true,
+       "max_length": 120,
+       "sample": "Maple Court"
+      },
+      {
+       "key": "unit",
+       "max_length": 20,
+       "sample": "4B"
+      },
+      {
+       "key": "category",
+       "type": "select",
+       "required": true,
+       "sample": "Plumbing",
+       "options": [
+        "Plumbing",
+        "Electrical",
+        "HVAC",
+        "Appliance",
+        "Pest",
+        "Other"
+       ]
+      },
+      {
+       "key": "urgency",
+       "type": "select",
+       "required": true,
+       "sample": "Routine",
+       "options": [
+        "Emergency",
+        "Urgent",
+        "Routine"
+       ]
+      },
+      {
+       "key": "description",
+       "required": true,
+       "max_length": 1000,
+       "sample": "Kitchen faucet drips constantly."
+      },
+      {
+       "key": "permission_to_enter",
+       "type": "select",
+       "default": "No",
+       "sample": "Yes",
+       "options": [
+        "Yes",
+        "No"
+       ]
+      }
+     ],
+     "extra_cols": [
+      {
+       "key": "status",
+       "value": "open"
+      },
+      {
+       "key": "priority",
+       "value": "normal"
+      },
+      {
+       "key": "scheduled_date",
+       "value": ""
+      },
+      {
+       "key": "contractor",
+       "value": ""
+      },
+      {
+       "key": "opted_out",
+       "value": ""
+      }
+     ],
+     "tags": [
+      {
+       "when": {
+        "field": "urgency",
+        "equals": "Emergency"
+       },
+       "set": {
+        "priority": "emergency"
+       }
+      },
+      {
+       "when": {
+        "field": "urgency",
+        "equals": "Urgent"
+       },
+       "set": {
+        "priority": "urgent"
+       }
+      }
+     ],
+     "variants": [
+      {
+       "when": {
+        "field": "urgency",
+        "equals": "Emergency"
+       },
+       "ack": "emergency"
+      }
+     ],
+     "route": {
+      "by": "category",
+      "map_cfg": "contractors",
+      "default_cfg": "owner_email"
+     },
+     "escalate": {
+      "when": {
+       "field": "priority",
+       "equals": "emergency"
+      },
+      "to_cfg": "emergency_email"
+     },
+     "ack": {
+      "subject": "We received your maintenance request ({{category}})",
+      "body": "Hi {{first_name}},\n\nWe received your request for {{property}} {{unit}}: {{description}}\n\nWe'll review it and schedule the repair. Urgent items are handled first. Permission to enter while you're away: {{permission_to_enter}}.\n\n{{business_name}}"
+     },
+     "acks": {
+      "emergency": {
+       "subject": "URGENT: we received your emergency request",
+       "body": "Hi {{first_name}},\n\nWe received your emergency request for {{property}} {{unit}}.\n\nIf anyone is in danger, there is a fire, a gas smell, or a medical emergency, call 911 FIRST. For active flooding, shut off the water at the main valve if you can do so safely.\n\nOur emergency line is {{emergency_phone}}. Please call it now so we can send help immediately.\n\n{{business_name}}"
+      }
+     },
+     "owner": {
+      "subject": "[{{priority}}] {{category}} at {{property}} {{unit}}: {{name}}",
+      "body": "{{name}} ({{phone}}, {{email}}) reports at {{property}} {{unit}}:\n\n{{description}}\n\nCategory: {{category}} / Urgency: {{urgency}} / Permission to enter: {{permission_to_enter}}\n\nRequest ID: {{id}}. Update progress with the 'Update Request' webhook or the sheet."
+     }
+    },
+    "tests": [
+     {
+      "name": "emergency escalates to emergency email and uses safety ack",
+      "set": {
+       "urgency": "Emergency"
+      },
+      "cfg": {
+       "emergency_email": "oncall@example.com"
+      },
+      "expect_row": {
+       "priority": "emergency"
+      },
+      "expect_variant": "emergency",
+      "expect_owner_to": "oncall@example.com",
+      "expect_html": [
+       "call 911 FIRST"
+      ]
+     },
+     {
+      "name": "routine routes to the plumber",
+      "expect_owner_to": "plumber@example.com",
+      "expect_row": {
+       "priority": "normal"
+      }
+     }
+    ],
+    "n": 1,
+    "wfname": "Maintenance 1 - Maintenance Request Intake",
+    "file": "1-maintenance-request-intake.json"
+   },
+   {
+    "id": "update",
+    "kind": "event",
+    "title": "Update Request",
+    "lite": true,
+    "hook": "maintenance-update",
+    "rt": {
+     "sheet": "Requests",
+     "key_col": "request_id",
+     "key_field": "request_id",
+     "emails_key": "status",
+     "dedupe_fields": [
+      "scheduled_date"
+     ],
+     "fields": [
+      {
+       "key": "request_id",
+       "required": true,
+       "sample": "Mabc123"
+      },
+      {
+       "key": "email",
+       "type": "email",
+       "required": true,
+       "sample": "jamie@example.test",
+       "write": false
+      },
+      {
+       "key": "name",
+       "sample": "Jamie Tenant",
+       "write": false
+      },
+      {
+       "key": "status",
+       "type": "select",
+       "required": true,
+       "sample": "scheduled",
+       "options": [
+        "scheduled",
+        "in_progress",
+        "completed",
+        "cancelled"
+       ]
+      },
+      {
+       "key": "scheduled_date",
+       "type": "date",
+       "sample": "2026-10-15"
+      },
+      {
+       "key": "contractor",
+       "max_length": 80,
+       "sample": "Smith Plumbing"
+      }
+     ],
+     "emails": {
+      "scheduled": {
+       "subject": "Your repair is scheduled",
+       "body": "Hi {{first_name}},\n\nYour maintenance request is scheduled for {{scheduled_date}} with {{contractor}}. If you won't be home, we'll enter only if you gave permission in your request.\n\n{{business_name}}"
+      },
+      "completed": {
+       "subject": "Your repair is complete",
+       "body": "Hi {{first_name}},\n\nYour maintenance request was marked complete. If the problem comes back or anything is still wrong, reply to this email right away.\n\n{{business_name}}"
+      },
+      "cancelled": {
+       "subject": "Your maintenance request was closed",
+       "body": "Hi {{first_name}},\n\nYour maintenance request was closed. If you still need help, reply or submit a new request.\n\n{{business_name}}"
+      }
+     }
+    },
+    "n": 2,
+    "wfname": "Maintenance 2 - Update Request",
+    "file": "2-update-request.json"
+   },
+   {
+    "id": "survey",
+    "kind": "sequence",
+    "title": "Completion Survey",
+    "lite": false,
+    "cron": "0 11 * * *",
+    "rt": {
+     "sheet": "Requests",
+     "key_col": "request_id",
+     "date_col": "updated_at",
+     "base_status": [
+      "completed"
+     ],
+     "stop_cols": {
+      "opted_out": "yes"
+     },
+     "steps": [
+      {
+       "flag": "survey_sent",
+       "offset_days": 1,
+       "window_days": 5,
+       "marketing": true,
+       "subject": "How did we do on your repair?",
+       "body": "Hi {{first_name}},\n\nWe'd like to know how your recent repair went. It takes one minute: {{survey_link}}\n\n{{business_name}}"
+      }
+     ],
+     "read_node": "Read Requests"
+    },
+    "n": 3,
+    "wfname": "Maintenance 3 - Completion Survey",
+    "file": "3-completion-survey.json"
+   },
+   {
+    "id": "aging",
+    "kind": "digest",
+    "title": "Open Request Aging",
+    "lite": false,
+    "cron": "0 8 * * 1-5",
+    "rt": {
+     "mode": "list",
+     "sources": [
+      {
+       "name": "requests",
+       "sheet": "Requests",
+       "key_col": "request_id",
+       "node": "Read Requests"
+      }
+     ],
+     "list": {
+      "source": "requests",
+      "where": [
+       {
+        "not": {
+         "field": "status",
+         "in": [
+          "completed",
+          "cancelled"
+         ]
+        }
+       }
+      ],
+      "date_col": "created_at",
+      "within_days": -2,
+      "columns": [
+       "request_id",
+       "property",
+       "unit",
+       "category",
+       "priority",
+       "status",
+       "created_at"
+      ]
+     },
+     "subject": "{{count}} maintenance request(s) open more than 2 days",
+     "intro": "These requests need attention:"
+    },
+    "test_rows": {
+     "requests": [
+      {
+       "request_id": "1",
+       "property": "A",
+       "unit": "1",
+       "category": "HVAC",
+       "priority": "urgent",
+       "status": "open",
+       "created_at": "2026-10-08"
+      },
+      {
+       "request_id": "2",
+       "property": "B",
+       "unit": "2",
+       "category": "Pest",
+       "priority": "normal",
+       "status": "completed",
+       "created_at": "2026-10-01"
+      },
+      {
+       "request_id": "3",
+       "property": "C",
+       "unit": "3",
+       "category": "Other",
+       "priority": "normal",
+       "status": "open",
+       "created_at": "2026-10-12"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "Maintenance 4 - Open Request Aging",
+    "file": "4-open-request-aging.json"
+   }
+  ],
+  "cols": {
+   "Requests": [
+    "request_id",
+    "created_at",
+    "name",
+    "email",
+    "phone",
+    "property",
+    "unit",
+    "category",
+    "urgency",
+    "description",
+    "permission_to_enter",
+    "status",
+    "priority",
+    "scheduled_date",
+    "contractor",
+    "opted_out",
+    "updated_at",
+    "survey_sent"
+   ]
+  }
+ },
+ {
+  "slug": "kpi-daily-digest",
+  "cfg": {
+   "business_name": "YOUR BUSINESS",
+   "owner_email": "you@example.com",
+   "sheet_id": "PASTE_GOOGLE_SHEET_ID",
+   "timezone": "America/New_York",
+   "webhook_secret": "",
+   "optout_footer": "Reply STOP and we will stop sending you these emails.",
+   "dry_run": true
+  },
+  "flows": [
+   {
+    "id": "record",
+    "kind": "intake",
+    "title": "Record A Metric",
+    "lite": true,
+    "hook": "kpi-record",
+    "rt": {
+     "sheet": "Metrics",
+     "id_col": "metric_id",
+     "id_prefix": "K",
+     "fields": [
+      {
+       "key": "metric",
+       "type": "select",
+       "required": true,
+       "sample": "Revenue",
+       "options": [
+        "Revenue",
+        "New Leads",
+        "New Customers",
+        "Support Tickets",
+        "Website Visits"
+       ]
+      },
+      {
+       "key": "value",
+       "type": "number",
+       "required": true,
+       "sample": 1250.5
+      },
+      {
+       "key": "date",
+       "type": "date",
+       "default_today": true,
+       "sample": "2026-10-11"
+      },
+      {
+       "key": "note",
+       "max_length": 200,
+       "sample": "From Stripe daily total"
+      }
+     ]
+    },
+    "n": 1,
+    "wfname": "KPI 1 - Record A Metric",
+    "file": "1-record-a-metric.json"
+   },
+   {
+    "id": "daily",
+    "kind": "digest",
+    "title": "Daily KPI Digest",
+    "lite": true,
+    "cron": "0 7 * * *",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 1,
+     "end_offset_days": -1,
+     "sources": [
+      {
+       "name": "metrics",
+       "sheet": "Metrics",
+       "key_col": "metric_id",
+       "node": "Read Metrics"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Revenue",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Revenue"
+        }
+       ],
+       "format": "money",
+       "alert_drop_pct": 30
+      },
+      {
+       "label": "New Leads",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Leads"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 40
+      },
+      {
+       "label": "New Customers",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Customers"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Support Tickets",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Support Tickets"
+        }
+       ],
+       "format": "number",
+       "alert_rise_pct": 150
+      },
+      {
+       "label": "Website Visits",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Website Visits"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      }
+     ],
+     "subject": "Yesterday's numbers ({{flagged_count}} alert(s))",
+     "intro": "Yesterday compared with the day before. Values come from what was recorded in the Metrics sheet."
+    },
+    "test_rows": {
+     "metrics": [
+      {
+       "metric_id": "M1",
+       "metric": "Revenue",
+       "value": "1000",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M2",
+       "metric": "Revenue",
+       "value": "3000",
+       "date": "2026-10-10"
+      },
+      {
+       "metric_id": "M3",
+       "metric": "Support Tickets",
+       "value": "9",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M4",
+       "metric": "Support Tickets",
+       "value": "2",
+       "date": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 2,
+    "wfname": "KPI 2 - Daily KPI Digest",
+    "file": "2-daily-kpi-digest.json"
+   },
+   {
+    "id": "anomaly",
+    "kind": "digest",
+    "title": "Anomaly Alert",
+    "lite": true,
+    "cron": "0 7 * * *",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 1,
+     "end_offset_days": -1,
+     "only_if_flagged": true,
+     "sources": [
+      {
+       "name": "metrics",
+       "sheet": "Metrics",
+       "key_col": "metric_id",
+       "node": "Read Metrics"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Revenue",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Revenue"
+        }
+       ],
+       "format": "money",
+       "alert_drop_pct": 30
+      },
+      {
+       "label": "New Leads",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Leads"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 40
+      },
+      {
+       "label": "New Customers",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Customers"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Support Tickets",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Support Tickets"
+        }
+       ],
+       "format": "number",
+       "alert_rise_pct": 150
+      },
+      {
+       "label": "Website Visits",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Website Visits"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      }
+     ],
+     "subject": "ALERT: {{flagged_count}} KPI(s) moved sharply",
+     "intro": "One or more metrics moved sharply versus the day before. Check whether it's real (or whether data was not recorded)."
+    },
+    "test_rows": {
+     "metrics": [
+      {
+       "metric_id": "M1",
+       "metric": "Revenue",
+       "value": "1000",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M2",
+       "metric": "Revenue",
+       "value": "3000",
+       "date": "2026-10-10"
+      },
+      {
+       "metric_id": "M3",
+       "metric": "Support Tickets",
+       "value": "9",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M4",
+       "metric": "Support Tickets",
+       "value": "2",
+       "date": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 3,
+    "wfname": "KPI 3 - Anomaly Alert",
+    "file": "3-anomaly-alert.json"
+   },
+   {
+    "id": "weekly",
+    "kind": "digest",
+    "title": "Weekly Trend Report",
+    "lite": false,
+    "cron": "0 8 * * 1",
+    "rt": {
+     "mode": "metrics",
+     "window_days": 7,
+     "end_offset_days": -1,
+     "sources": [
+      {
+       "name": "metrics",
+       "sheet": "Metrics",
+       "key_col": "metric_id",
+       "node": "Read Metrics"
+      }
+     ],
+     "metrics": [
+      {
+       "label": "Revenue",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Revenue"
+        }
+       ],
+       "format": "money",
+       "alert_drop_pct": 30
+      },
+      {
+       "label": "New Leads",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Leads"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 40
+      },
+      {
+       "label": "New Customers",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "New Customers"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      },
+      {
+       "label": "Support Tickets",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Support Tickets"
+        }
+       ],
+       "format": "number",
+       "alert_rise_pct": 150
+      },
+      {
+       "label": "Website Visits",
+       "source": "metrics",
+       "op": "sum",
+       "col": "value",
+       "date_col": "date",
+       "where": [
+        {
+         "field": "metric",
+         "equals": "Website Visits"
+        }
+       ],
+       "format": "number",
+       "alert_drop_pct": 50
+      }
+     ],
+     "subject": "Weekly KPI trends ({{flagged_count}} alert(s))",
+     "intro": "The last {{window_days}} full days compared with the {{window_days}} before."
+    },
+    "test_rows": {
+     "metrics": [
+      {
+       "metric_id": "M1",
+       "metric": "Revenue",
+       "value": "1000",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M2",
+       "metric": "Revenue",
+       "value": "3000",
+       "date": "2026-10-10"
+      },
+      {
+       "metric_id": "M3",
+       "metric": "Support Tickets",
+       "value": "9",
+       "date": "2026-10-11"
+      },
+      {
+       "metric_id": "M4",
+       "metric": "Support Tickets",
+       "value": "2",
+       "date": "2026-10-10"
+      }
+     ]
+    },
+    "expect_count": 1,
+    "n": 4,
+    "wfname": "KPI 4 - Weekly Trend Report",
+    "file": "4-weekly-trend-report.json"
+   }
+  ],
+  "cols": {
+   "Metrics": [
+    "metric_id",
+    "created_at",
+    "metric",
+    "value",
+    "date",
+    "note"
+   ]
+  }
+ }
+]

@@ -1,0 +1,1 @@
+booking_id,created_at,name,email,phone,service,vehicle,location,appt_date,notes,status,deposit_paid,opted_out,updated_at,appt_time,confirmed_at,dep1_sent,dep2_sent,rem2_sent,rem1_sent,review_sent,rebook_sent

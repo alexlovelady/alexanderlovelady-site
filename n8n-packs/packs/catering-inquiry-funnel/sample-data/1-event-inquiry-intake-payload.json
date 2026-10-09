@@ -1,0 +1,11 @@
+{
+  "name": "Sam Rivers",
+  "email": "sam@example.test",
+  "phone": "555-0121",
+  "event_type": "Corporate",
+  "event_date": "2026-12-12",
+  "guests": 60,
+  "location": "Waterfront Hall",
+  "budget": "$2,500",
+  "dietary": "2 vegetarian, 1 nut allergy"
+}

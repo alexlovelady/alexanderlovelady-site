@@ -1,0 +1,90 @@
+{
+  "id": "5683814fdb2d5f45",
+  "name": "SaaSTrial 8 - Error Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "9dfb2851-2c88-5154-b040-1abf8f97b2af",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR PRODUCT\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"product_name\": \"YOUR PRODUCT\",\n  \"app_url\": \"https://app.example.com\",\n  \"upgrade_url\": \"https://app.example.com/upgrade\",\n  \"docs_url\": \"https://example.com/docs\",\n  \"survey_url\": \"https://example.com/why-did-you-leave\"\n}",
+        "options": {}
+      },
+      "id": "f5e37149-f2b8-5480-b2d7-ebf6e230f77b",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "=n8n workflow failed: {{ $('Error Trigger').first().json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<p>Workflow <strong>{{ $('Error Trigger').first().json.workflow.name }}</strong> failed at node <strong>{{ $('Error Trigger').first().json.execution.lastNodeExecuted }}</strong>.</p><p>{{ $('Error Trigger').first().json.execution.error.message }}</p><p>Execution: {{ $('Error Trigger').first().json.execution.url }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "dadff22c-272d-577a-a240-2610e1f906c2",
+      "name": "Email Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Email Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "fcec4d47-8af6-5858-b5e1-8dd298ae8310",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

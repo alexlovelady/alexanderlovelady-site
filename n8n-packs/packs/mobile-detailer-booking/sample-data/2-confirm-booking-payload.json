@@ -1,0 +1,8 @@
+{
+  "booking_id": "Dabc123",
+  "email": "chris@example.test",
+  "name": "Chris Park",
+  "service": "Full Detail",
+  "appt_date": "2026-10-24",
+  "appt_time": "09:00"
+}

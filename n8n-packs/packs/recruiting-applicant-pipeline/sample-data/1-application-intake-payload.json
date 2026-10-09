@@ -1,0 +1,9 @@
+{
+  "name": "Alex Morgan",
+  "email": "alex@example.test",
+  "phone": "555-0133",
+  "role": "Driver",
+  "resume_url": "https://example.test/alex-resume.pdf",
+  "source": "Indeed",
+  "note": "Available to start in two weeks."
+}

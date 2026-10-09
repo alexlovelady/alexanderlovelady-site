@@ -1,0 +1,360 @@
+{
+  "id": "62e100ba55285996",
+  "name": "Detailer 2 - Confirm Booking",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "detailer-confirm",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "24dfde80-e84e-5331-9cf9-c27448af0a76",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "42747e51-74a6-5e16-adff-b30d1d66c75d"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR DETAILING BUSINESS\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"(555) 000-0000\",\n  \"deposit_link\": \"https://example.com/pay-deposit\",\n  \"review_link\": \"https://g.page/r/YOUR-REVIEW-LINK\",\n  \"deposit_amount\": \"$50\",\n  \"flow\": {\n    \"sheet\": \"Bookings\",\n    \"key_col\": \"booking_id\",\n    \"key_field\": \"booking_id\",\n    \"set\": {\n      \"status\": \"booked\"\n    },\n    \"set_today\": [\n      \"confirmed_at\"\n    ],\n    \"fields\": [\n      {\n        \"key\": \"booking_id\",\n        \"required\": true,\n        \"sample\": \"Dabc123\"\n      },\n      {\n        \"key\": \"email\",\n        \"type\": \"email\",\n        \"required\": true,\n        \"sample\": \"chris@example.test\",\n        \"write\": false\n      },\n      {\n        \"key\": \"name\",\n        \"sample\": \"Chris Park\",\n        \"write\": false\n      },\n      {\n        \"key\": \"service\",\n        \"sample\": \"Full Detail\",\n        \"write\": false\n      },\n      {\n        \"key\": \"appt_date\",\n        \"type\": \"date\",\n        \"required\": true,\n        \"sample\": \"2026-10-24\"\n      },\n      {\n        \"key\": \"appt_time\",\n        \"type\": \"time\",\n        \"required\": true,\n        \"sample\": \"09:00\"\n      }\n    ],\n    \"email\": {\n      \"subject\": \"Confirmed: {{service}} on {{appt_date}} at {{appt_time}}\",\n      \"body\": \"Hi {{first_name}},\\n\\nYou're confirmed for {{appt_date}} at {{appt_time}}.\\n\\nPlease pay the {{deposit_amount}} deposit here to hold your slot: {{deposit_link}}\\n\\nPlease clear personal items from the car and make sure we have access to water and power if it's a mobile job.\\n\\n{{business_name}}\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "4920ce99-683e-562b-a380-8a42402d4628",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// EVENT: a webhook that updates one existing row (status change, booking, payment received...) and sends the matching emails.\nconst store = $getWorkflowStaticData('global');\nconst out = [];\nfor (const item of $('Webhook').all()) {\n  const dry = cfg.dry_run === true;\n  if (authFails(item)) { out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue; }\n  const { v, errors } = validateFields(flow.fields, item.json.body || {});\n  if (errors.length) { out.push({ json: { status: 'invalid', errors, dry_run: dry } }); continue; }\n  const key = v[flow.key_field || flow.key_col];\n  const dkey = 'ev|' + flow.sheet + '|' + lc(key) + '|' + JSON.stringify(flow.set || {}) + '|' + (flow.dedupe_fields || []).map(k => lc(v[k])).join('|');\n  if (isSeen(store, dkey)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n  if (!dry) markSeen(store, dkey);\n  const row = { [flow.key_col]: key, updated_at: today };\n  for (const f of flow.fields) if (f.write !== false && f.key !== (flow.key_field || flow.key_col) && v[f.key] !== '') row[f.col || f.key] = v[f.key];\n  Object.assign(row, flow.set || {});\n  for (const c of flow.set_today || []) row[c] = today;\n  const ctx = { ...v, ...row, today, first_name: String(v.name || '').trim().split(/\\s+/)[0] || 'there' };\n  const res = { status: 'new', dry_run: dry, id: key, row, mail_to: '', mail_subject: '', mail_html: '', owner_to: cfg.owner_email, owner_subject: '', owner_html: '' };\n  const em = flow.emails ? flow.emails[lc(v[flow.emails_key])] : flow.email;\n  if (em) {\n    res.mail_to = String(v[em.to_field || 'email'] || '');\n    res.mail_subject = renderText(em.subject, ctx);\n    res.mail_html = withFooter(render(em.body, ctx), em.marketing);\n  }\n  if (flow.owner) {\n    if (flow.owner.to_field && v[flow.owner.to_field] && isEmail(v[flow.owner.to_field])) res.owner_to = v[flow.owner.to_field];\n    res.owner_subject = renderText(flow.owner.subject, ctx);\n    res.owner_html = render(flow.owner.body, ctx);\n  }\n  out.push({ json: res });\n}\nreturn out;\n"
+      },
+      "id": "29e0ad1e-4c1e-598e-98cf-88407d84d98f",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "92ffd260-1cfe-5079-9958-fadb9938e2de",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "92ffd260-1cfe-5079-9958-fadb9938e2de",
+      "name": "Valid and New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ Number($json.status === \"unauthorized\" ? 401 : ($json.status === \"invalid\" ? 422 : 200)) }}"
+        }
+      },
+      "id": "48843ff5-7f97-5f95-8aeb-9b5c2b3729e7",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "4de830aa-3458-5084-a829-478822ed85fd",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4de830aa-3458-5084-a829-478822ed85fd",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ dry_run: true, preview: $json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "8ed87bb2-7f2a-52a5-bf40-e0e1e3cb6cfa",
+      "name": "Respond: Dry Run Preview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Bookings",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "booking_id": "={{ $json.row[\"booking_id\"] }}",
+            "updated_at": "={{ $json.row[\"updated_at\"] }}",
+            "appt_date": "={{ $json.row[\"appt_date\"] }}",
+            "appt_time": "={{ $json.row[\"appt_time\"] }}",
+            "status": "={{ $json.row[\"status\"] }}",
+            "confirmed_at": "={{ $json.row[\"confirmed_at\"] }}"
+          },
+          "matchingColumns": [
+            "booking_id"
+          ],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "64913f91-1804-5ccf-a885-f1eabc52029c",
+      "name": "Update Row",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.mail_to }}",
+        "subject": "={{ $('Prepare').first().json.mail_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.mail_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "50ff8634-cc6d-5796-96ea-c9337b722608",
+      "name": "Email Customer",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prepare').first().json;\nreturn [{ json: { status: 'recorded', id: p.id, variant: p.variant || undefined } }];\n"
+      },
+      "id": "58d91c23-f4fe-5190-92e7-aa17451de4ef",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "75401e0c-af85-5fcf-a8f0-72f99cb3ba5e",
+      "name": "Respond: OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1600,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Valid and New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Row": {
+      "main": [
+        [
+          {
+            "node": "Email Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email Customer": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6023724b-a574-53d4-a4ac-57a3923ca43b",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

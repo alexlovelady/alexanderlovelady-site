@@ -1,0 +1,90 @@
+{
+  "id": "40e87ccc89b85770",
+  "name": "Catering 7 - Error Alert",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "49e7500e-db08-5e3d-87df-e722171ada87",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CATERING\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"(555) 000-0000\",\n  \"kitchen_email\": \"kitchen@example.com\",\n  \"max_guests\": 300,\n  \"min_lead_days\": 14,\n  \"blackout_dates\": [\n    \"2026-12-24\",\n    \"2026-12-25\"\n  ],\n  \"deposit_text\": \"A 50% deposit holds your date. We'll send payment instructions separately.\"\n}",
+        "options": {}
+      },
+      "id": "945fbd49-cb08-595d-ac10-cac74d4d4ef0",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        220,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Config').first().json.owner_email }}",
+        "subject": "=n8n workflow failed: {{ $('Error Trigger').first().json.workflow.name }}",
+        "emailType": "html",
+        "message": "=<p>Workflow <strong>{{ $('Error Trigger').first().json.workflow.name }}</strong> failed at node <strong>{{ $('Error Trigger').first().json.execution.lastNodeExecuted }}</strong>.</p><p>{{ $('Error Trigger').first().json.execution.error.message }}</p><p>Execution: {{ $('Error Trigger').first().json.execution.url }}</p>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8fb7513f-85d1-5e93-bf82-5bcb15140195",
+      "name": "Email Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        440,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Email Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4accc476-bfe9-5d9a-948d-b298222d0c87",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

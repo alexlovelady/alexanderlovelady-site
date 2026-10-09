@@ -1,0 +1,1 @@
+invoice_id,created_at,name,email,amount,issue_date,due_date,invoice_link,description,status,paid_date,r_pre_sent,r_due_sent,r_late3_sent,r_late10_sent,r_late20_sent,updated_at

@@ -1,0 +1,10 @@
+{
+  "invoice_id": "INV-1042",
+  "name": "Morgan Lee",
+  "email": "accounts@client.test",
+  "amount": 1250,
+  "issue_date": "2026-10-01",
+  "due_date": "2026-10-31",
+  "invoice_link": "https://pay.example.com/inv-1042",
+  "description": "October retainer"
+}

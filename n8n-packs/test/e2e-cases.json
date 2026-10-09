@@ -1,0 +1,376 @@
+[
+ {
+  "pack": "contractor-quote-followup",
+  "workflow": "Contractor 1 - Estimate Request Intake",
+  "path": "contractor-request",
+  "valid": {
+   "name": "Dana Cole",
+   "email": "dana@example.test",
+   "phone": "555-0142",
+   "project_type": "Remodel",
+   "zip": "27909",
+   "budget_range": "$10k-$30k",
+   "timeline": "ASAP",
+   "description": "Kitchen remodel, about 200 sq ft."
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "contractor-quote-followup",
+  "workflow": "Contractor 3 - Quote Accepted",
+  "path": "contractor-accepted",
+  "valid": {
+   "request_id": "Qabc123",
+   "email": "dana@example.test",
+   "name": "Dana Cole",
+   "project_type": "Remodel",
+   "address": "12 Oak St",
+   "amount": 18500,
+   "start_date": "2026-11-16"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "mobile-detailer-booking",
+  "workflow": "Detailer 1 - Booking Request Intake",
+  "path": "detailer-request",
+  "valid": {
+   "name": "Chris Park",
+   "email": "chris@example.test",
+   "phone": "555-0177",
+   "service": "Full Detail",
+   "vehicle": "2021 Honda CR-V",
+   "location": "12 Oak St",
+   "appt_date": "2026-10-24",
+   "notes": "Pet hair in the back seat"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "mobile-detailer-booking",
+  "workflow": "Detailer 2 - Confirm Booking",
+  "path": "detailer-confirm",
+  "valid": {
+   "booking_id": "Dabc123",
+   "email": "chris@example.test",
+   "name": "Chris Park",
+   "service": "Full Detail",
+   "appt_date": "2026-10-24",
+   "appt_time": "09:00"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "real-estate-lead-response",
+  "workflow": "RealEstate 1 - Lead Intake And Instant Reply",
+  "path": "realestate-lead",
+  "valid": {
+   "name": "Taylor Brooks",
+   "email": "taylor@example.test",
+   "phone": "555-0188",
+   "interest": "Buying",
+   "area": "Elizabeth City",
+   "price_range": "$250k-$350k",
+   "timeline": "1-3 months",
+   "source": "Website",
+   "message": "Looking for a 3 bedroom near the water."
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "real-estate-lead-response",
+  "workflow": "RealEstate 3 - Viewing Scheduled",
+  "path": "realestate-viewing",
+  "valid": {
+   "lead_id": "REabc123",
+   "email": "taylor@example.test",
+   "name": "Taylor Brooks",
+   "property_address": "12 Harbor Rd",
+   "viewing_date": "2026-10-20",
+   "viewing_time": "14:00"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "saas-trial-to-paid",
+  "workflow": "SaaSTrial 1 - New Trial Signup",
+  "path": "saas-signup",
+  "valid": {
+   "user_id": "u_1001",
+   "name": "Riley Quinn",
+   "email": "riley@example.test",
+   "plan": "Pro",
+   "trial_end": "2026-10-26"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "saas-trial-to-paid",
+  "workflow": "SaaSTrial 4 - Converted To Paid",
+  "path": "saas-converted",
+  "valid": {
+   "user_id": "u_1001",
+   "email": "riley@example.test",
+   "name": "Riley Quinn",
+   "plan": "Pro"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "saas-trial-to-paid",
+  "workflow": "SaaSTrial 5 - Cancelled Or Churned",
+  "path": "saas-cancelled",
+  "valid": {
+   "user_id": "u_1001",
+   "email": "riley@example.test",
+   "name": "Riley Quinn"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "saas-trial-to-paid",
+  "workflow": "SaaSTrial 6 - Mark User Activated",
+  "path": "saas-activated",
+  "valid": {
+   "user_id": "u_1001"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "etsy-seller-operations",
+  "workflow": "Etsy 1 - Log An Order",
+  "path": "etsy-order",
+  "valid": {
+   "order_id": "3012345678",
+   "name": "Buyer Name",
+   "item": "Walnut cutting board",
+   "qty": 1,
+   "price": 64,
+   "ship_by": "2026-10-16",
+   "notes": "Gift message: Happy birthday!"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "etsy-seller-operations",
+  "workflow": "Etsy 2 - Mark Order Shipped",
+  "path": "etsy-shipped",
+  "valid": {
+   "order_id": "3012345678",
+   "tracking": "9400111899223344556677"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "etsy-seller-operations",
+  "workflow": "Etsy 4 - Log An Expense",
+  "path": "etsy-expense",
+  "valid": {
+   "date": "2026-10-10",
+   "category": "Supplies",
+   "vendor": "Wood Supply Co",
+   "amount": 42.5,
+   "note": "Walnut boards"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "invoice-accounts-receivable",
+  "workflow": "Invoices 1 - Log New Invoice",
+  "path": "invoice-new",
+  "valid": {
+   "invoice_id": "INV-1042",
+   "name": "Morgan Lee",
+   "email": "accounts@client.test",
+   "amount": 1250,
+   "issue_date": "2026-10-01",
+   "due_date": "2026-10-31",
+   "invoice_link": "https://pay.example.com/inv-1042",
+   "description": "October retainer"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "invoice-accounts-receivable",
+  "workflow": "Invoices 3 - Mark Invoice Paid",
+  "path": "invoice-paid",
+  "valid": {
+   "invoice_id": "INV-1042",
+   "email": "accounts@client.test",
+   "name": "Morgan Lee",
+   "amount": 1250
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "local-review-management",
+  "workflow": "Reviews 1 - Log A Completed Job",
+  "path": "review-customer",
+  "valid": {
+   "name": "Pat Rivera",
+   "email": "pat@example.test",
+   "service": "House cleaning",
+   "job_date": "2026-10-10"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "local-review-management",
+  "workflow": "Reviews 3 - Private Feedback Form",
+  "path": "review-feedback",
+  "valid": {
+   "name": "Pat Rivera",
+   "email": "pat@example.test",
+   "rating": "5",
+   "comment": "Great job, very thorough.",
+   "service": "House cleaning"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "appointment-no-show-reduction",
+  "workflow": "NoShow 1 - New Appointment",
+  "path": "noshow-book",
+  "valid": {
+   "name": "Jordan Smith",
+   "email": "jordan@example.test",
+   "phone": "555-0166",
+   "service": "Haircut",
+   "appt_date": "2026-10-22",
+   "appt_time": "15:30"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "appointment-no-show-reduction",
+  "workflow": "NoShow 3 - Mark No-Show",
+  "path": "noshow-missed",
+  "valid": {
+   "appt_id": "Aabc123"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "appointment-no-show-reduction",
+  "workflow": "NoShow 4 - Mark Attended",
+  "path": "noshow-attended",
+  "valid": {
+   "appt_id": "Aabc123"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "appointment-no-show-reduction",
+  "workflow": "NoShow 5 - Reschedule Appointment",
+  "path": "noshow-reschedule",
+  "valid": {
+   "appt_id": "Aabc123",
+   "email": "jordan@example.test",
+   "name": "Jordan Smith",
+   "appt_date": "2026-10-29",
+   "appt_time": "10:00"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "recruiting-applicant-pipeline",
+  "workflow": "Recruiting 1 - Application Intake",
+  "path": "recruiting-apply",
+  "valid": {
+   "name": "Alex Morgan",
+   "email": "alex@example.test",
+   "phone": "555-0133",
+   "role": "Driver",
+   "resume_url": "https://example.test/alex-resume.pdf",
+   "source": "Indeed",
+   "note": "Available to start in two weeks."
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "recruiting-applicant-pipeline",
+  "workflow": "Recruiting 2 - Update Applicant Status",
+  "path": "recruiting-status",
+  "valid": {
+   "applicant_id": "APabc123",
+   "email": "alex@example.test",
+   "name": "Alex Morgan",
+   "role": "Driver",
+   "status": "interview"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "catering-inquiry-funnel",
+  "workflow": "Catering 1 - Event Inquiry Intake",
+  "path": "catering-inquiry",
+  "valid": {
+   "name": "Sam Rivers",
+   "email": "sam@example.test",
+   "phone": "555-0121",
+   "event_type": "Corporate",
+   "event_date": "2026-12-12",
+   "guests": 60,
+   "location": "Waterfront Hall",
+   "budget": "$2,500",
+   "dietary": "2 vegetarian, 1 nut allergy"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "catering-inquiry-funnel",
+  "workflow": "Catering 3 - Event Confirmed",
+  "path": "catering-confirmed",
+  "valid": {
+   "inquiry_id": "CTabc123",
+   "email": "sam@example.test",
+   "name": "Sam Rivers",
+   "event_type": "Corporate",
+   "event_date": "2026-12-12"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "property-maintenance-desk",
+  "workflow": "Maintenance 1 - Maintenance Request Intake",
+  "path": "maintenance-request",
+  "valid": {
+   "name": "Jamie Tenant",
+   "email": "jamie@example.test",
+   "phone": "555-0144",
+   "property": "Maple Court",
+   "unit": "4B",
+   "category": "Plumbing",
+   "urgency": "Routine",
+   "description": "Kitchen faucet drips constantly.",
+   "permission_to_enter": "Yes"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "property-maintenance-desk",
+  "workflow": "Maintenance 2 - Update Request",
+  "path": "maintenance-update",
+  "valid": {
+   "request_id": "Mabc123",
+   "email": "jamie@example.test",
+   "name": "Jamie Tenant",
+   "status": "scheduled",
+   "scheduled_date": "2026-10-15",
+   "contractor": "Smith Plumbing"
+  },
+  "expect_valid": "\"dry_run\":true"
+ },
+ {
+  "pack": "kpi-daily-digest",
+  "workflow": "KPI 1 - Record A Metric",
+  "path": "kpi-record",
+  "valid": {
+   "metric": "Revenue",
+   "value": 1250.5,
+   "date": "2026-10-11",
+   "note": "From Stripe daily total"
+  },
+  "expect_valid": "\"dry_run\":true"
+ }
+]

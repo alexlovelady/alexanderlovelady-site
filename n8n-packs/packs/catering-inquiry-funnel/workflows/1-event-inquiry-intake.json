@@ -1,0 +1,401 @@
+{
+  "id": "fc534e2d96695aa1",
+  "name": "Catering 1 - Event Inquiry Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "catering-inquiry",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "465de1ae-fcf1-5de2-b657-a9c48e9294bb",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "daa9aacb-27c1-50d2-96a1-0d4bdb93682c"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "{\n  \"business_name\": \"YOUR CATERING\",\n  \"owner_email\": \"you@example.com\",\n  \"sheet_id\": \"PASTE_GOOGLE_SHEET_ID\",\n  \"timezone\": \"America/New_York\",\n  \"webhook_secret\": \"\",\n  \"optout_footer\": \"Reply STOP and we will stop sending you these emails.\",\n  \"dry_run\": true,\n  \"business_phone\": \"(555) 000-0000\",\n  \"kitchen_email\": \"kitchen@example.com\",\n  \"max_guests\": 300,\n  \"min_lead_days\": 14,\n  \"blackout_dates\": [\n    \"2026-12-24\",\n    \"2026-12-25\"\n  ],\n  \"deposit_text\": \"A 50% deposit holds your date. We'll send payment instructions separately.\",\n  \"flow\": {\n    \"sheet\": \"Inquiries\",\n    \"id_col\": \"inquiry_id\",\n    \"id_prefix\": \"CT\",\n    \"dedupe\": [\n      \"email\",\n      \"event_date\"\n    ],\n    \"fields\": [\n      {\n        \"key\": \"name\",\n        \"required\": true,\n        \"sample\": \"Sam Rivers\"\n      },\n      {\n        \"key\": \"email\",\n        \"type\": \"email\",\n        \"required\": true,\n        \"sample\": \"sam@example.test\"\n      },\n      {\n        \"key\": \"phone\",\n        \"type\": \"phone\",\n        \"sample\": \"555-0121\"\n      },\n      {\n        \"key\": \"event_type\",\n        \"type\": \"select\",\n        \"required\": true,\n        \"sample\": \"Corporate\",\n        \"options\": [\n          \"Wedding\",\n          \"Corporate\",\n          \"Birthday\",\n          \"Memorial\",\n          \"Other\"\n        ]\n      },\n      {\n        \"key\": \"event_date\",\n        \"type\": \"date\",\n        \"required\": true,\n        \"min_days_ahead\": 0,\n        \"sample\": \"2026-12-12\"\n      },\n      {\n        \"key\": \"guests\",\n        \"type\": \"number\",\n        \"required\": true,\n        \"min\": 1,\n        \"max\": 5000,\n        \"sample\": 60\n      },\n      {\n        \"key\": \"location\",\n        \"max_length\": 200,\n        \"sample\": \"Waterfront Hall\"\n      },\n      {\n        \"key\": \"budget\",\n        \"max_length\": 60,\n        \"sample\": \"$2,500\"\n      },\n      {\n        \"key\": \"dietary\",\n        \"max_length\": 300,\n        \"sample\": \"2 vegetarian, 1 nut allergy\"\n      }\n    ],\n    \"extra_cols\": [\n      {\n        \"key\": \"status\",\n        \"value\": \"new\"\n      },\n      {\n        \"key\": \"quote_sent_at\",\n        \"value\": \"\"\n      },\n      {\n        \"key\": \"deposit_paid\",\n        \"value\": \"\"\n      },\n      {\n        \"key\": \"opted_out\",\n        \"value\": \"\"\n      }\n    ],\n    \"variants\": [\n      {\n        \"when\": {\n          \"field\": \"event_date\",\n          \"in_cfg\": \"blackout_dates\"\n        },\n        \"set\": {\n          \"status\": \"declined_date\"\n        },\n        \"ack\": \"date\"\n      },\n      {\n        \"when\": {\n          \"field\": \"guests\",\n          \"gt\": \"cfg.max_guests\"\n        },\n        \"set\": {\n          \"status\": \"too_large\"\n        },\n        \"ack\": \"large\"\n      },\n      {\n        \"when\": {\n          \"field\": \"days_until_event_date\",\n          \"lt\": \"cfg.min_lead_days\"\n        },\n        \"set\": {\n          \"status\": \"short_notice\"\n        },\n        \"ack\": \"short\"\n      }\n    ],\n    \"ack\": {\n      \"subject\": \"Your {{event_type}} inquiry for {{event_date}}\",\n      \"body\": \"Hi {{first_name}},\\n\\nThank you for considering {{business_name}} for your {{event_type}} on {{event_date}} ({{guests}} guests). We'll review the details and send a proposal, usually within 2 business days.\\n\\nQuestions in the meantime? {{business_phone}}.\\n\\n{{business_name}}\"\n    },\n    \"acks\": {\n      \"date\": {\n        \"subject\": \"About your {{event_date}} date\",\n        \"body\": \"Hi {{first_name}},\\n\\nThank you for thinking of us. Unfortunately we're not able to cater on {{event_date}}. If you have a flexible date, reply and we'll check availability.\\n\\n{{business_name}}\"\n      },\n      \"large\": {\n        \"subject\": \"About your event size\",\n        \"body\": \"Hi {{first_name}},\\n\\nThank you for your inquiry. {{guests}} guests is above our usual maximum, so we'd need to talk before we could commit. We'll contact you shortly to see whether we can make it work.\\n\\n{{business_name}}\"\n      },\n      \"short\": {\n        \"subject\": \"Your {{event_date}} event: short notice\",\n        \"body\": \"Hi {{first_name}},\\n\\nThank you for your inquiry. Your date is on short notice for us, so we'll need to confirm availability and menu options by phone. We'll contact you today, or call {{business_phone}}.\\n\\n{{business_name}}\"\n      }\n    },\n    \"owner\": {\n      \"subject\": \"[{{status}}] Catering inquiry: {{name}}, {{event_type}} on {{event_date}} ({{guests}})\",\n      \"body\": \"{{name}} ({{email}}, {{phone}})\\n\\n{{event_type}} on {{event_date}} at {{location}} for {{guests}} guests.\\nBudget: {{budget}}\\nDietary: {{dietary}}\\n\\nInquiry ID: {{id}}\\n\\nWhen you send the proposal, set status to 'quoted' and fill quote_sent_at to start follow-ups.\"\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "add62db0-a0f2-5b42-8be0-a0ab91db4e90",
+      "name": "Config",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        200,
+        0
+      ],
+      "notes": "EDIT ME: every setting for this pack lives in this node.",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// ---- shared prelude (the generator puts this at the top of every engine Code node) ----\nconst cfg = $('Config').first().json;\nconst flow = cfg.flow || {};\nconst esc = s => String(s ?? '').replace(/[&<>\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\nconst today = cfg.today_override || new Date().toLocaleDateString('en-CA', { timeZone: cfg.timezone || 'UTC' });\nconst ymdOf = s => String(s ?? '').trim().slice(0, 10);\nconst isYmd = s => /^\\d{4}-\\d{2}-\\d{2}$/.test(s) && new Date(s + 'T00:00:00Z').toISOString().slice(0, 10) === s;\nconst addDays = (ymd, n) => { const d = new Date(ymd + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };\nconst daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);\nconst isEmail = s => /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(String(s || ''));\nconst lc = x => String(x ?? '').trim().toLowerCase();\nconst yes = v => lc(v) === 'yes';\nconst get = (o, p) => String(p).split('.').reduce((a, k) => (a == null ? undefined : a[k]), o);\nconst lookup = (ctx, k) => { const v = get(ctx, k); return v === undefined ? get(cfg, k) : v; };\nconst fmtMoney = n => '$' + (Math.round(Number(n) * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });\n// Plain text with {{placeholders}} -> safe HTML (template text and values escaped, bare URLs linked, blank line = new paragraph).\nconst render = (tpl, ctx) => String(tpl ?? '').split(/\\n\\s*\\n/).map(par => {\n  let h = par.replace(/[<>&\"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '\"': '&quot;', \"'\": '&#39;' }[c]));\n  h = h.replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => esc(lookup(ctx, k) ?? ''));\n  h = h.replace(/(https?:\\/\\/[^\\s<]+?)([.,;:!?)]*)(?=\\s|<|$)/g, '<a href=\"$1\">$1</a>$2').replace(/\\n/g, '<br>');\n  return '<p>' + h + '</p>';\n}).join('\\n');\n// Subject lines: plain text, no line breaks (prevents header injection).\nconst renderText = (tpl, ctx) => String(tpl ?? '').replace(/\\{\\{\\s*([\\w.]+)\\s*\\}\\}/g, (_, k) => String(lookup(ctx, k) ?? '')).replace(/[\\r\\n]+/g, ' ').trim();\nconst match = (c, ctx) => {\n  if (!c) return true;\n  if (Array.isArray(c)) return c.every(x => match(x, ctx));\n  if (c.any) return c.any.some(x => match(x, ctx));\n  if (c.all) return c.all.every(x => match(x, ctx));\n  if (c.not) return !match(c.not, ctx);\n  const raw = get(ctx, c.field); const s = lc(raw); const n = parseFloat(raw);\n  const num = x => (typeof x === 'string' && x.startsWith('cfg.') ? parseFloat(get(cfg, x.slice(4))) : x);\n  if ('equals' in c) return s === lc(c.equals);\n  if ('in' in c) return c.in.map(lc).includes(s);\n  if ('in_cfg' in c) return (get(cfg, c.in_cfg) || []).map(lc).includes(s);\n  if ('contains' in c) return s.includes(lc(c.contains));\n  if ('contains_any' in c) return c.contains_any.some(w => s.includes(lc(w)));\n  if ('empty' in c) return (s === '') === !!c.empty;\n  if ('gte' in c) return Number.isFinite(n) && n >= num(c.gte);\n  if ('lte' in c) return Number.isFinite(n) && n <= num(c.lte);\n  if ('gt' in c) return Number.isFinite(n) && n > num(c.gt);\n  if ('lt' in c) return Number.isFinite(n) && n < num(c.lt);\n  if ('lte_field' in c) { const o = parseFloat(get(ctx, c.lte_field)); return Number.isFinite(n) && Number.isFinite(o) && n <= o; }\n  return false;\n};\n// Validates a payload against a field list. Returns { v: cleaned values, errors: [...] }.\nconst validateFields = (fields, b) => {\n  const v = {}; const errors = [];\n  for (const f of fields) {\n    const s0 = b[f.key] == null ? '' : String(b[f.key]).trim();\n    if (!s0) { if (f.required) errors.push('missing ' + f.key); v[f.key] = f.default_today ? today : (f.default ?? ''); continue; }\n    let s = s0;\n    switch (f.type || 'text') {\n      case 'email': s = s.toLowerCase(); if (!isEmail(s)) errors.push('invalid ' + f.key); break;\n      case 'phone': if (s.replace(/\\D/g, '').length < 7) errors.push('invalid ' + f.key); s = s.slice(0, 30); break;\n      case 'url': if (!/^https?:\\/\\/\\S+$/i.test(s)) errors.push(f.key + ' must be a http(s) link'); s = s.slice(0, 500); break;\n      case 'date': {\n        if (!isYmd(s)) { errors.push(f.key + ' must be YYYY-MM-DD'); break; }\n        const d = daysBetween(today, s);\n        if (f.min_days_ahead != null && d < f.min_days_ahead) errors.push(f.key + ' is too soon');\n        if (f.max_days_ahead != null && d > f.max_days_ahead) errors.push(f.key + ' is too far ahead');\n        break;\n      }\n      case 'time': if (!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(s)) errors.push(f.key + ' must be HH:MM (24h)'); break;\n      case 'number': { const n = parseFloat(s); if (!Number.isFinite(n) || (f.min != null && n < f.min) || (f.max != null && n > f.max)) errors.push('invalid ' + f.key); else s = n; break; }\n      case 'select': { const hit = (f.options || []).find(o => lc(o) === lc(s)); if (hit === undefined) errors.push(f.key + ' must be one of: ' + (f.options || []).join(', ')); else s = hit; break; }\n      default: s = s.slice(0, f.max_length || 1000);\n    }\n    v[f.key] = s;\n  }\n  return { v, errors };\n};\nconst authFails = item => !!cfg.webhook_secret && (item.json.headers || {})['x-webhook-secret'] !== cfg.webhook_secret;\nconst newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);\nconst markSeen = (store, key) => {\n  store.seen = store.seen || {};\n  const keys = Object.keys(store.seen);\n  if (keys.length > 500) for (const k of keys) if (store.seen[k] < addDays(today, -3)) delete store.seen[k];\n  store.seen[key] = today;\n};\nconst isSeen = (store, key) => !!(store.seen && store.seen[key] === today);\nconst withFooter = (html, marketing) => marketing && cfg.optout_footer ? html + `<p style=\"color:#777;font-size:12px\">${esc(cfg.optout_footer)}</p>` : html;\n// ---- end prelude ----\n\n// INTAKE: validates a webhook payload, blocks same-day duplicates, tags/routes it, builds the row, the acknowledgement and the owner alert.\nconst store = $getWorkflowStaticData('global');\nconst out = [];\nfor (const item of $('Webhook').all()) {\n  const dry = cfg.dry_run === true;\n  if (authFails(item)) { out.push({ json: { status: 'unauthorized', dry_run: dry } }); continue; }\n  const { v, errors } = validateFields(flow.fields, item.json.body || {});\n  if (errors.length) { out.push({ json: { status: 'invalid', errors, dry_run: dry } }); continue; }\n  if (flow.dedupe && flow.dedupe.length) {\n    const key = 'in|' + flow.sheet + '|' + flow.dedupe.map(k => lc(v[k])).join('|');\n    if (isSeen(store, key)) { out.push({ json: { status: 'duplicate', dry_run: dry } }); continue; }\n    if (!dry) markSeen(store, key);\n  }\n  const id = flow.id_field && v[flow.id_field] ? String(v[flow.id_field]) : newId(flow.id_prefix || 'R');\n  const row = { [flow.id_col]: id, created_at: today, ...v };\n  for (const c of flow.extra_cols || []) row[c.key] = c.value;\n  const ctx = { ...row, today, first_name: String(v.name || '').trim().split(/\\s+/)[0] || 'there' };\n  for (const f of flow.fields) if (f.type === 'date' && isYmd(String(v[f.key]))) ctx['days_until_' + f.key] = daysBetween(today, v[f.key]);\n  for (const t of flow.tags || []) if (match(t.when, ctx)) { Object.assign(row, t.set); Object.assign(ctx, t.set); }\n  let ackKey = null;\n  for (const va of flow.variants || []) if (match(va.when, ctx)) { Object.assign(row, va.set || {}); Object.assign(ctx, va.set || {}); ackKey = va.ack; break; }\n  let ownerTo = cfg.owner_email;\n  if (flow.route) {\n    const m = get(cfg, flow.route.map_cfg) || {};\n    ownerTo = m[lc(v[flow.route.by])] || get(cfg, flow.route.default_cfg || 'owner_email') || cfg.owner_email;\n  }\n  if (flow.escalate && match(flow.escalate.when, ctx)) ownerTo = get(cfg, flow.escalate.to_cfg) || ownerTo;\n  ctx.route_email = ownerTo; ctx.id = id;\n  if (flow.route && flow.route.store_col) row[flow.route.store_col] = ownerTo;\n  const ack = (ackKey && flow.acks && flow.acks[ackKey]) || flow.ack;\n  out.push({ json: {\n    status: 'new', dry_run: dry, id, variant: ackKey || '', row,\n    ack_to: ack ? String(v[ack.to || 'email'] || '') : '', ack_subject: ack ? renderText(ack.subject, ctx) : '',\n    ack_html: ack ? withFooter(render(ack.body, ctx), ack.marketing) : '',\n    owner_to: ownerTo, owner_subject: flow.owner ? renderText(flow.owner.subject, ctx) : '', owner_html: flow.owner ? render(flow.owner.body, ctx) : '',\n  } });\n}\nreturn out;\n"
+      },
+      "id": "6d9fe934-2b1a-5b68-aa7a-87b85c659914",
+      "name": "Prepare",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "721a6179-9b10-51e2-be87-56ac1820705f",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "new",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "721a6179-9b10-51e2-be87-56ac1820705f",
+      "name": "Valid and New?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ Number($json.status === \"unauthorized\" ? 401 : ($json.status === \"invalid\" ? 422 : 200)) }}"
+        }
+      },
+      "id": "e4b87316-c896-59d7-9b4e-f456fb62b75b",
+      "name": "Respond: Rejected",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "35b6c106-6648-5d4e-866a-30538befdad1",
+              "leftValue": "={{ $json.dry_run }}",
+              "rightValue": "true",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "35b6c106-6648-5d4e-866a-30538befdad1",
+      "name": "Dry Run?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ dry_run: true, preview: $json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "0d5a882c-6f37-5dd8-8415-21c59859865f",
+      "name": "Respond: Dry Run Preview",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        -200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "={{ $('Config').first().json.sheet_id }}",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Inquiries",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "inquiry_id": "={{ $json.row[\"inquiry_id\"] }}",
+            "created_at": "={{ $json.row[\"created_at\"] }}",
+            "name": "={{ $json.row[\"name\"] }}",
+            "email": "={{ $json.row[\"email\"] }}",
+            "phone": "={{ $json.row[\"phone\"] }}",
+            "event_type": "={{ $json.row[\"event_type\"] }}",
+            "event_date": "={{ $json.row[\"event_date\"] }}",
+            "guests": "={{ $json.row[\"guests\"] }}",
+            "location": "={{ $json.row[\"location\"] }}",
+            "budget": "={{ $json.row[\"budget\"] }}",
+            "dietary": "={{ $json.row[\"dietary\"] }}",
+            "status": "={{ $json.row[\"status\"] }}",
+            "quote_sent_at": "={{ $json.row[\"quote_sent_at\"] }}",
+            "deposit_paid": "={{ $json.row[\"deposit_paid\"] }}",
+            "opted_out": "={{ $json.row[\"opted_out\"] }}"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "cd56260a-0141-5853-aef0-7e5fc0460f14",
+      "name": "Log Entry",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1000,
+        0
+      ],
+      "notes": "Connect your Google Sheets credential."
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.ack_to }}",
+        "subject": "={{ $('Prepare').first().json.ack_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.ack_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5cadc022-ad0d-5b9c-b98d-f2a13ef33558",
+      "name": "Send Acknowledgement",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1200,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "send",
+        "sendTo": "={{ $('Prepare').first().json.owner_to }}",
+        "subject": "={{ $('Prepare').first().json.owner_subject }}",
+        "emailType": "html",
+        "message": "={{ $('Prepare').first().json.owner_html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "5b0f1e69-7d0b-5fa4-85ab-42c19a8e2f46",
+      "name": "Notify Owner",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1400,
+        0
+      ],
+      "notes": "Connect your Gmail credential.",
+      "notesInFlow": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $('Prepare').first().json;\nreturn [{ json: { status: 'recorded', id: p.id, variant: p.variant || undefined } }];\n"
+      },
+      "id": "b11d8caf-3248-5717-b491-9a672fe21c99",
+      "name": "Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "97430bdc-7dff-5f90-b100-b3ce1b316ead",
+      "name": "Respond: OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1800,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Prepare",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare": {
+      "main": [
+        [
+          {
+            "node": "Valid and New?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid and New?": {
+      "main": [
+        [
+          {
+            "node": "Dry Run?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond: Rejected",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dry Run?": {
+      "main": [
+        [
+          {
+            "node": "Respond: Dry Run Preview",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Entry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Entry": {
+      "main": [
+        [
+          {
+            "node": "Send Acknowledgement",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Acknowledgement": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary": {
+      "main": [
+        [
+          {
+            "node": "Respond: OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ffe7ed1b-a577-585e-bc8b-5f34cb8e1f60",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
