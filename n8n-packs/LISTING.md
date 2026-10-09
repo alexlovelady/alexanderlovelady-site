@@ -10,7 +10,8 @@ Two packs built. Prices are test hypotheses, not market-verified. Competitor evi
 Zip each pack folder (`workflows/`, `sheets/`, `sample-data/`, `logic/`, `README.md`) as the download. Lite = delete the extra workflows from the zip.
 
 ## Honest claims to make
-- "Tested on n8n 2.42.5." True. "Logic covered by 22 automated tests." True.
+- "Tested on n8n 2.42.5." True: all 9 workflows import, and the three webhook workflows were run end-to-end in a real n8n (dry-run and validation paths). "Logic covered by 22 automated tests." True.
+- Verified in a real n8n with dry_run off: the flow reaches the Gmail/Sheets steps and stops only because no credentials were connected.
 - Do NOT say "tested with live Gmail/Sheets" until you do it (checklist below).
 - Say what it costs to run: n8n hosting + free Gmail/Sheets. No hidden API fees.
 - No reviews/sales claims. No "set and forget". It's a template with a 20-30 minute setup.
@@ -62,7 +63,7 @@ REQUIREMENTS: n8n, Gmail, Google Sheets (Calendar optional). Estimates are range
 Cross-sell: pairs with the Cleaning Job Profit & Quote Calculator (set your hourly price from real costs).
 
 ## Pre-publish checklist (human)
-1. Import all workflows into a real n8n, connect real Gmail + Sheets + Drive/Calendar test accounts, run the curl tests with `dry_run` false, check each email arrives and sheet rows update. Fix anything and re-run `python3 build.py`.
+1. (Engine already verified by test/e2e.sh.) Import all workflows into your n8n, connect real Gmail + Sheets + Drive/Calendar test accounts, run the curl tests with `dry_run` false, check each email arrives and sheet rows update. Fix anything and re-run `python3 build.py`.
 2. Confirm the Sheets `appendOrUpdate` node updates the right row after a follow-up (this is the most likely thing to need tweaking).
 3. Add a screen recording (30-60s) of the dry-run curl tests and of a real run.
 4. Add license text (single business use, no resale).

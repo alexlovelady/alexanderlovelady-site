@@ -41,7 +41,7 @@ class WF:
             self.link(a, b)
 
     def json(self):
-        return {"name": self.name, "nodes": self.nodes, "connections": self.conn, "active": False,
+        return {"id": uuid.uuid5(NS, "wf" + self.name).hex[:16], "name": self.name, "nodes": self.nodes, "connections": self.conn, "active": False,
                 "settings": {"executionOrder": "v1"}, "versionId": str(uuid.uuid5(NS, "v" + self.name)),
                 "meta": {"templateCredsSetupCompleted": False}, "tags": []}
 
@@ -75,7 +75,7 @@ def if_node(wf, name, left, right, x, y, op="equals"):
         "options": {}}, x, y)
 
 
-def respond(wf, name, body, x, y, code_expr="200"):
+def respond(wf, name, body, x, y, code_expr=200):
     return wf.add(name, "n8n-nodes-base.respondToWebhook", 1.1,
                   {"respondWith": "json", "responseBody": body, "options": {"responseCode": code_expr}}, x, y)
 
@@ -166,7 +166,7 @@ def agency():
     code_node(w, "Prepare Deal", code(AG, "01-prepare-deal.js"), 400, 0)
     if_node(w, "Valid and New?", "={{ $json.status }}", "new", 600, 0)
     respond(w, "Respond: Rejected", "={{ JSON.stringify($json) }}",
-            800, 160, '={{ $json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200) }}')
+            800, 160, '={{ Number($json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200)) }}')
     if_node(w, "Dry Run?", "={{ $json.dry_run }}", "true", 800, -80, op="equals")
     respond(w, "Respond: Dry Run Preview", "={{ JSON.stringify({ dry_run: true, preview: $json }) }}", 1000, -200)
     gmail(w, "Send Welcome Email", "={{ $json.contact_email }}", "={{ $json.welcome_subject }}", "={{ $json.welcome_html }}", 1000, 0)
@@ -252,7 +252,7 @@ def cleaning():
     code_node(w, "Prepare Lead", code(CL, "01-prepare-lead.js"), 400, 0)
     if_node(w, "Valid and New?", "={{ $json.status }}", "new", 600, 0)
     respond(w, "Respond: Rejected", "={{ JSON.stringify($json) }}", 800, 160,
-            '={{ $json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200) }}')
+            '={{ Number($json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200)) }}')
     if_node(w, "Dry Run?", "={{ $json.dry_run }}", "true", 800, -80)
     respond(w, "Respond: Dry Run Preview", "={{ JSON.stringify({ dry_run: true, preview: $json }) }}", 1000, -200)
     m = {"lead_id": "lead_id", "created_at": "created_at", "name": "name", "email": "email", "phone": "phone",
@@ -295,7 +295,7 @@ def cleaning():
     code_node(w, "Prepare Booking", code(CL, "03-prepare-booking.js"), 400, 0)
     if_node(w, "Valid and New?", "={{ $json.status }}", "new", 600, 0)
     respond(w, "Respond: Rejected", "={{ JSON.stringify($json) }}", 800, 160,
-            '={{ $json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200) }}')
+            '={{ Number($json.status === "unauthorized" ? 401 : ($json.status === "invalid" ? 422 : 200)) }}')
     if_node(w, "Dry Run?", "={{ $json.dry_run }}", "true", 800, -80)
     respond(w, "Respond: Dry Run Preview", "={{ JSON.stringify({ dry_run: true, preview: $json }) }}", 1000, -200)
     mb = {c: f"={{{{ $json.{s} }}}}" for c, s in [("lead_id", "lead_id"), ("status", "lead_status"), ("booking_date", "booking_date"),
