@@ -13,9 +13,14 @@
     <div class="container hero__content">
       <div class="eyebrow">Portfolio</div>
       <h1 class="h1">Selected engineering work.</h1>
-      <p class="hero__sub">I'm an automation developer and Navy veteran who designs and ships production systems end to end — from a live algorithmic trading platform to SaaS products with real paying customers. This page is the technical detail behind that work, for recruiters and engineers; the <a href="/work" style="color:var(--copper-light); text-decoration:underline;">Work</a> page next door is written for customers instead.</p>
+      <p class="hero__sub">I'm an automation developer, Navy veteran and CompTIA Security+ holder who designs and ships systems end to end — from an algorithmic trading platform to deployed SaaS products, AI automations, and a home security lab. This page is the technical detail behind that work, for recruiters and engineers; the <a href="/work" style="color:var(--copper-light); text-decoration:underline;">Work</a> page next door is written for customers instead.</p>
+      <p class="hero__sub" style="margin-top:-8px;"><strong>Open to:</strong> IT support, security, automation and software roles — remote, or on-site and hybrid in Hampton Roads, VA.</p>
       <div class="btn-row">
-        <a href="<%= site.githubUrl %>" target="_blank" rel="noopener" class="btn btn-primary">View GitHub →</a>
+        <% site.resumes.forEach(function(r, i) { %>
+        <a href="<%= r.file %>" class="btn <%= i === 0 ? 'btn-primary' : 'btn-outline-dark' %>" download>Download: <%= r.label %></a>
+        <% }) %>
+        <a href="<%= site.linkedinUrl %>" target="_blank" rel="noopener" class="btn btn-outline-dark">LinkedIn →</a>
+        <a href="<%= site.githubUrl %>" target="_blank" rel="noopener" class="btn btn-outline-dark">GitHub →</a>
         <a href="/contact" class="btn btn-outline-dark">Get in touch</a>
       </div>
       <% site.certifications.forEach(function(c) { %>
@@ -59,7 +64,7 @@
   <section class="section section--dark section--line-top">
     <div class="container">
       <div class="eyebrow">Shipped products</div>
-      <h2 class="h2" style="margin-bottom:36px;">Live, in production, real users.</h2>
+      <h2 class="h2" style="margin-bottom:36px;">Built, deployed, and running.</h2>
       <div class="grid grid-2">
         <% site.businesses.forEach(function(biz) { %>
         <div class="card card--dark">
@@ -101,10 +106,51 @@
 
   <section class="section section--dark section--line-top">
     <div class="container">
-      <div class="eyebrow">Small tools</div>
+      <div class="eyebrow">Automation and AI</div>
+      <h2 class="h2" style="margin-bottom:36px;">Systems that do the busywork.</h2>
+      <div class="grid grid-2">
+        <% site.portfolio.automation.forEach(function(p) { %>
+        <div class="card card--dark">
+          <div class="card__corner"></div>
+          <h3 class="h3" style="margin-bottom:8px;"><%= p.name %></h3>
+          <p class="small" style="color:var(--paper-muted); margin-bottom:12px;"><%= p.oneLiner %></p>
+          <p class="small" style="color:var(--paper-muted); margin-bottom:18px;"><%= p.detail %></p>
+          <div class="work-card__tags">
+            <% p.stack.forEach(function(t) { %><span class="tag"><%= t %></span><% }) %>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--light section--line-top">
+    <div class="container">
+      <div class="eyebrow">Security</div>
+      <h2 class="h2" style="margin-bottom:12px;">Home security lab.</h2>
+      <p class="lede" style="margin-bottom:36px;">Hands-on practice behind the Security+: building the tools a defender uses and watching how attackers behave.</p>
+      <div class="grid grid-2">
+        <% site.portfolio.securityLab.forEach(function(p) { %>
+        <div class="card">
+          <div class="card__corner"></div>
+          <h3 class="h3" style="margin-bottom:8px;"><%= p.name %></h3>
+          <p class="small" style="margin-bottom:12px;"><%= p.oneLiner %></p>
+          <p class="small" style="margin-bottom:18px;"><%= p.detail %></p>
+          <div class="work-card__tags">
+            <% p.stack.forEach(function(t) { %><span class="tag"><%= t %></span><% }) %>
+          </div>
+        </div>
+        <% }) %>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--dark section--line-top">
+    <div class="container">
+      <div class="eyebrow">Open source</div>
       <h2 class="h2" style="margin-bottom:36px;">Public repos, open to browse.</h2>
       <div class="grid grid-2">
-        <% site.portfolio.smallTools.forEach(function(t) { %>
+        <% site.portfolio.openSource.concat(site.portfolio.smallTools).forEach(function(t) { %>
         <a href="<%= t.url %>" target="_blank" rel="noopener" class="card card--dark" style="display:block; text-decoration:none;">
           <div class="card__corner"></div>
           <h3 class="h3" style="margin-bottom:8px; font-size:1.2rem;"><%= t.name %> →</h3>
